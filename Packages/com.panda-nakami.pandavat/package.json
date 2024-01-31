@@ -1,0 +1,17 @@
+{
+  "name": "com.vrchat.panda-nakami.pandavat",
+  "displayName": "com.panda-nakami.pandavat",
+  "version": "0.0.1",
+  "description": "About\r\nVRC World\u5411\u3051VertexAnimationTexture\u7528\u30a8\u30c7\u30a3\u30bf\u62e1\u5f35\u3068\u30b7\u30a7\u30fc\u30c0\u30fc\u30c6\u30f3\u30d7\u30ec\u30fc\u30c8",
+  "gitDependencies": {},
+  "vpmDependencies": {},
+  "author": {
+    "name": "panda-nakami",
+    "email": "kuippagure@gmail.com",
+    "url": ""
+  },
+  "legacyFolders": {},
+  "legacyFiles": {},
+  "localPath": "C:\\Users\\seij\\Desktop\\unity\\PandaVAT\\Packages\\com.vrchat.pandanakami.pandavat",
+  "unity": "2022.3"
+}

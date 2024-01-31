@@ -1,0 +1,14 @@
+{
+  "name": "com.vrchat.pandanakami.pandavat.Editor",
+  "references": [
+    "com.vrchat.pandanakami.pandavat"
+  ],
+  "includePlatforms": [],
+  "excludePlatforms": [],
+  "allowUnsafeCode": false,
+  "autoReferenced": true,
+  "overrideReferences": false,
+  "precompiledReferences": [],
+  "defineConstraints": [],
+  "optionalUnityReferences": []
+}
