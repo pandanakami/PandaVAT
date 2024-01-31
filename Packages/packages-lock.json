@@ -1,5 +1,11 @@
 {
   "dependencies": {
+    "com.panda-nakami.pandavat": {
+      "version": "file:com.panda-nakami.pandavat",
+      "depth": 0,
+      "source": "embedded",
+      "dependencies": {}
+    },
     "com.unity.ai.navigation": {
       "version": "1.1.4",
       "depth": 0,
@@ -104,12 +110,6 @@
       "dependencies": {
         "com.unity.nuget.newtonsoft-json": "3.0.2"
       }
-    },
-    "com.vrchat.panda-nakami.pandavat": {
-      "version": "file:com.panda-nakami.pandavat",
-      "depth": 0,
-      "source": "embedded",
-      "dependencies": {}
     },
     "com.unity.modules.ai": {
       "version": "1.0.0",
