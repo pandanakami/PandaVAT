@@ -64,3 +64,5 @@ Assets/PackageMakerWindowData.asset*
 .vscode
 
 /Assets/
+/UserSettings/
+/.vsconfig
