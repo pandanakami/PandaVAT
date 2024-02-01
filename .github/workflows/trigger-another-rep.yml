@@ -1,0 +1,24 @@
+name: Trigger Another Repository Workflow
+
+on:
+  workflow_dispatch:
+  workflow_run:
+    workflows: [Build Repo Listing]
+    types:
+      - completed
+
+jobs:
+  trigger-workflow:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Trigger workflow in another repository
+        uses: actions/github-script@v5
+        with:
+          github-token: ${{ secrets.PERSONAL_ACCESS_TOKEN }}
+          script: |
+            github.rest.actions.createWorkflowDispatch({
+              owner: 'pandanakami',
+              repo: 'vpm-package-list',
+              workflow_id: 'build-listing.yml',
+              ref: 'main'
+            });
