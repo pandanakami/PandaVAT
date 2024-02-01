@@ -2,8 +2,7 @@ Shader "PandaShad/Vat/VatSample"
 {
 	Properties
 	{
-		[HDR]
-		_VatTex ("VatTexture", 2D) = "black" { }
+		[HDR] _VatTex ("VatTexture", 2D) = "black" { }
 		_VatFps ("VatFps", float) = 30
 		_VatVertexCount ("VatVertexCount", int) = 6
 		_VatFrameCount ("VatFrameCount", int) = 6
@@ -29,9 +28,10 @@ Shader "PandaShad/Vat/VatSample"
 			
 			#include "UnityCG.cginc"
 			
+			//シェーダーの用途によってOn/Off
 			#define VAT_USE_NORMAL
 			//#define VAT_USE_TANGENT
-			#include "PandaVat.cginc"
+			#include "Packages/com.panda-nakami.pandavat/Runtime/Shader/PandaVat.cginc"
 			
 			struct appdata
 			{
@@ -44,8 +44,8 @@ Shader "PandaShad/Vat/VatSample"
 			
 			struct v2f
 			{
-				float2 uv: TEXCOORD0;
 				float4 vertex: SV_POSITION;
+				float2 uv: TEXCOORD0;
 				float3 normalColor: NORMAL;
 				UNITY_VERTEX_INPUT_INSTANCE_ID
 				UNITY_VERTEX_OUTPUT_STEREO
@@ -67,7 +67,7 @@ Shader "PandaShad/Vat/VatSample"
 				
 				o.vertex = UnityObjectToClipPos(v.vertex);
 				o.uv = v.uv;
-				o.normalColor = UnityObjectToWorldDir(v.normal) / 2 + 0.5;
+				o.normalColor = UnityObjectToWorldDir(v.normal);
 				return o;
 			}
 			
@@ -75,7 +75,9 @@ Shader "PandaShad/Vat/VatSample"
 			{
 				UNITY_SETUP_INSTANCE_ID(i);
 				UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
-				fixed4 col = fixed4(i.normalColor, 1);
+
+				//Normalを色にする
+				fixed4 col = fixed4(i.normalColor / 2 + 0.5, 1);
 				return col;
 			}
 			ENDCG

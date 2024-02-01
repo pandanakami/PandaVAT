@@ -49,8 +49,8 @@ inline VatDiffInfo _MixVatAttribute(VatDiffInfo before, VatDiffInfo after, float
 //VATの差分を取得
 inline VatDiffInfo GetVatDiff(uint vertexId)
 {
-	///uv2から頂点位置をとる(x)
-	float vertUvX = float(vertexId) / _VatVertexCount;//v.uv1.x;
+	///頂点位置をとる(x)
+	float vertUvX = float(vertexId) / _VatVertexCount;
 	
 	///フレーム位置をとる(y)。
 #if VAT_CTRL_WITH_RATE
@@ -75,12 +75,12 @@ inline VatDiffInfo GetVatDiff(uint vertexId)
 	float frameRateAfter = min(frameRateBefore + _VatDeltaSec, maxRate);//最大割合時、0に戻ってしまうのを防ぐいらないとは思うけど。
 	
 	//前VATフレームと次VATフレームで、今の時間がどれだけ次VATフレームに寄っているか割合
-	float frameRateAfterRate = (frameRateRaw - frameRateBefore) / _VatDeltaSec;
+	float afterRate = (frameRateRaw - frameRateBefore) / _VatDeltaSec;
 
 	VatDiffInfo before = _GetFrameAttribute(vertUvX, frameRateBefore);
 	VatDiffInfo after = _GetFrameAttribute(vertUvX, frameRateAfter);
 
-	return _MixVatAttribute(before, after, frameRateAfterRate);
+	return _MixVatAttribute(before, after, afterRate);
 }
 
 /******************************** private function ***************************/
@@ -93,37 +93,37 @@ inline VatDiffInfo _GetFrameAttribute(float vertRate, float frameRate)
 	//x,yからVAT位置情報取得
 	float uvX = vertRate + _Dx;
 	float uvY = (frameRate + _Dy) / 3;
+	float4 uv = float4(uvX, uvY, 0, 0);
 	
 	//位置
-	o.posDiff = tex2Dlod(_VatTex, float4(uvX, uvY, 0, 0)) / VAT_SCALE;
+	o.posDiff = tex2Dlod(_VatTex, uv) / VAT_SCALE;
 	
 #ifdef VAT_USE_NORMAL
 	//Normal
-	uvY += 0.33333333333;
-	o.normalDiff = tex2Dlod(_VatTex, float4(uvX, uvY, 0, 0));
+	uv.y += 0.33333333333;
+	o.normalDiff = tex2Dlod(_VatTex, uv);
 #endif
 
 #ifdef VAT_USE_TANGENT
 	//Tangent
-	uvY += 0.33333333333;
-	o.tangentDiff = tex2Dlod(_VatTex, float4(uvX, uvY, 0, 0));
+	uv.y += 0.33333333333;
+	o.tangentDiff = tex2Dlod(_VatTex, uv);
 #endif
 	return o;
 }
 
-//VATの前後フレームの差分情報を合成する
-inline VatDiffInfo _MixVatAttribute(VatDiffInfo before, VatDiffInfo after, float frameRateAfterRate)
+//VATの前後フレームを線形補完する
+inline VatDiffInfo _MixVatAttribute(VatDiffInfo before, VatDiffInfo after, float afterRate)
 {
 	VatDiffInfo o;
-	//位置差分をローカル情報に加味
-	o.posDiff = lerp(before.posDiff, after.posDiff, frameRateAfterRate);
+	o.posDiff = lerp(before.posDiff, after.posDiff, afterRate);
 
 #ifdef VAT_USE_NORMAL
-	o.normalDiff = lerp(before.normalDiff, after.normalDiff, frameRateAfterRate);
+	o.normalDiff = lerp(before.normalDiff, after.normalDiff, afterRate);
 #endif
 
 #ifdef VAT_USE_TANGENT
-	o.tangentDiff = lerp(after.tangentDiff, after.tangentDiff, frameRateAfterRate);
+	o.tangentDiff = lerp(after.tangentDiff, after.tangentDiff, afterRate);
 #endif
 	return o;
 }
