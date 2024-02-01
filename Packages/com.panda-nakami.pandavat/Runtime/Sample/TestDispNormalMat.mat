@@ -7,7 +7,7 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: TestDispNormal
+  m_Name: TestDispNormalMat
   m_Shader: {fileID: 4800000, guid: 38d0b761c82d2a444a60430bed82660d, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
