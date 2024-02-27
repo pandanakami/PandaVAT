@@ -7,6 +7,7 @@ Shader "PandaShad/Vat/VatSample"
 		_VatVertexCount ("VatVertexCount", int) = 6
 		_VatFrameCount ("VatFrameCount", int) = 6
 		_VatStartTimeSec ("VatStartTimeSec", float) = 0
+		_VatSpeed ("VatSpeed", float) = 1
 		[Toggle(VAT_LOOP)] _VatLoop ("Is animation loop", Int) = 1
 		[Toggle(VAT_CTRL_WITH_RATE)] _VatCtrlWithRate ("Is Vat control with rate", Int) = 0
 		_VatRate ("VatRate", Range(0, 1)) = 0

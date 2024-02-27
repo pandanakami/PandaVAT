@@ -12,6 +12,7 @@ UNITY_INSTANCING_BUFFER_START(VatProps)
 UNITY_DEFINE_INSTANCED_PROP(float, _VatRate)//頂点アニメーション時間割合
 #else
 UNITY_DEFINE_INSTANCED_PROP(float, _VatStartTimeSec)//頂点アニメーション開始時間 秒
+UNITY_DEFINE_INSTANCED_PROP(float, _VatSpeed)//頂点アニメーションスピード
 #endif
 UNITY_INSTANCING_BUFFER_END(VatProps)
 
@@ -57,13 +58,18 @@ inline VatDiffInfo GetVatDiff(uint vertexId)
 	//プロパティの割合を指定
 	float frameRateRaw = UNITY_ACCESS_INSTANCED_PROP(VatProps, _VatRate);
 #else
+	
+	float speed = UNITY_ACCESS_INSTANCED_PROP(VatProps, _VatSpeed);
+	
 	//時間をとる
-	float diffTimeSec = _Time.y - UNITY_ACCESS_INSTANCED_PROP(VatProps, _VatStartTimeSec);
+	float diffTimeSec = (_Time.y - UNITY_ACCESS_INSTANCED_PROP(VatProps, _VatStartTimeSec)) * speed;
+	
 	
 #if VAT_LOOP
 	float posSec = fmod(diffTimeSec, _VatDuration);
 #else
-	float posSec = diffTimeSec > _VatDuration ? 1 : diffTimeSec / _VatDuration;
+	float posSec = max(0, min(diffTimeSec, _VatDuration));
+	
 #endif
 	//フレーム位置をとる(y)。
 	float frameRateRaw = posSec / _VatDuration;
