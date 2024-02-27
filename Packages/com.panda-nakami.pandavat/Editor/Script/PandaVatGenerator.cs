@@ -90,11 +90,11 @@ namespace PandaScript.PandaVat
 
 				var isSkinnedMeshRenderer = true;
 
-				if(_targetRenderer is SkinnedMeshRenderer) {
+				if (_targetRenderer is SkinnedMeshRenderer) {
 					_targetSkinnedMeshRenderer = _targetRenderer as SkinnedMeshRenderer;
 					_baseMesh = _targetSkinnedMeshRenderer.sharedMesh;
 				}
-				else if(_targetRenderer is MeshRenderer) {
+				else if (_targetRenderer is MeshRenderer) {
 					isSkinnedMeshRenderer = false;
 					_targetMeshRenderer = _targetRenderer as MeshRenderer;
 					_baseMesh = _targetRenderer.GetComponent<MeshFilter>()?.sharedMesh;
@@ -115,6 +115,14 @@ namespace PandaScript.PandaVat
 
 				_CreateVat(isSkinnedMeshRenderer);
 				Debug.Log($"Generate VAT Finish!!!");
+			}
+
+			//なぜか、Textureがセットされないので別フレームでセット
+			if (_MaterialBk != null) {
+				_MaterialBk.SetTexture("_VatTex", _TextureBk);
+				_MaterialBk = null;
+				_TextureBk = null;
+				AssetDatabase.Refresh();
 			}
 		}
 
@@ -247,19 +255,28 @@ namespace PandaScript.PandaVat
 				var isCreate = false;
 				if (!newMat) {
 					newMat = new Material(_targetShader);
+
+					//シェーダープロパティコピー
+					var baseMat = _targetRenderer.material;
+					newMat.CopyPropertiesFromMaterial(baseMat);
+
 					isCreate = true;
 				}
 
-				newMat.SetTexture("_VatTex", (Texture)AssetDatabase.LoadAssetAtPath(texPass, typeof(Texture)));
+				if (isCreate) {
+					AssetDatabase.CreateAsset(newMat, matPass);
+					AssetDatabase.Refresh();
+				}
+				newMat = (Material)AssetDatabase.LoadAssetAtPath(matPass, typeof(Material));
+				var newTex = (Texture)AssetDatabase.LoadAssetAtPath(texPass, typeof(Texture));
+
+				newMat.SetTexture("_VatTex", newTex);
 				newMat.SetFloat("_VatFps", ANIM_FPS);
 				newMat.SetFloat("_VatVertexCount", vertexCount);
 				newMat.SetFloat("_VatFrameCount", frameCount);
-
-				if (isCreate) {
-					AssetDatabase.CreateAsset(newMat, matPass);
-				}
 				Debug.Log($"Create mesh : {matPass}");
-
+				_MaterialBk = newMat;
+				_TextureBk = newTex;
 			}
 
 			//表示更新
@@ -292,6 +309,9 @@ namespace PandaScript.PandaVat
 				}
 			}
 		}
+		private Texture _TextureBk;
+		private Material _MaterialBk;
+
 
 		private Color GetColor(Vector3 data)
 		{
