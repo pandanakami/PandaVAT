@@ -259,8 +259,6 @@ namespace PandaScript.PandaVat
 				var newTex = (Texture)AssetDatabase.LoadAssetAtPath(texPass, typeof(Texture));
 				newMat.SetTexture("_VatTex", newTex);
 				newMat.SetFloat("_VatFps", ANIM_FPS);
-				newMat.SetFloat("_VatVertexCount", vertexCount);
-				newMat.SetFloat("_VatFrameCount", frameCount);
 				Debug.Log($"Create mesh : {matPass}");
 			}
 
