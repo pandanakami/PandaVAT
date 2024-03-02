@@ -116,14 +116,6 @@ namespace PandaScript.PandaVat
 				_CreateVat(isSkinnedMeshRenderer);
 				Debug.Log($"Generate VAT Finish!!!");
 			}
-
-			//なぜか、Textureがセットされないので別フレームでセット
-			if (_MaterialBk != null) {
-				_MaterialBk.SetTexture("_VatTex", _TextureBk);
-				_MaterialBk = null;
-				_TextureBk = null;
-				AssetDatabase.Refresh();
-			}
 		}
 
 		private void _CreateVat(bool isSkinedMeshRenderer)
@@ -254,29 +246,22 @@ namespace PandaScript.PandaVat
 				newMat = (Material)AssetDatabase.LoadAssetAtPath(matPass, typeof(Material));
 				var isCreate = false;
 				if (!newMat) {
-					newMat = new Material(_targetShader);
-
-					//シェーダープロパティコピー
-					var baseMat = _targetRenderer.material;
-					newMat.CopyPropertiesFromMaterial(baseMat);
+					newMat = new Material(_targetRenderer.material);
+					newMat.shader = _targetShader;
 
 					isCreate = true;
 				}
 
 				if (isCreate) {
 					AssetDatabase.CreateAsset(newMat, matPass);
-					AssetDatabase.Refresh();
 				}
-				newMat = (Material)AssetDatabase.LoadAssetAtPath(matPass, typeof(Material));
-				var newTex = (Texture)AssetDatabase.LoadAssetAtPath(texPass, typeof(Texture));
 
+				var newTex = (Texture)AssetDatabase.LoadAssetAtPath(texPass, typeof(Texture));
 				newMat.SetTexture("_VatTex", newTex);
 				newMat.SetFloat("_VatFps", ANIM_FPS);
 				newMat.SetFloat("_VatVertexCount", vertexCount);
 				newMat.SetFloat("_VatFrameCount", frameCount);
 				Debug.Log($"Create mesh : {matPass}");
-				_MaterialBk = newMat;
-				_TextureBk = newTex;
 			}
 
 			//表示更新
@@ -309,9 +294,6 @@ namespace PandaScript.PandaVat
 				}
 			}
 		}
-		private Texture _TextureBk;
-		private Material _MaterialBk;
-
 
 		private Color GetColor(Vector3 data)
 		{

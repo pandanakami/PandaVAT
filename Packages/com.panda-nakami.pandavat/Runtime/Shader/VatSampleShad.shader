@@ -4,8 +4,6 @@ Shader "PandaShad/Vat/VatSample"
 	{
 		[HDR] _VatTex ("VatTexture", 2D) = "black" { }
 		_VatFps ("VatFps", float) = 30
-		_VatVertexCount ("VatVertexCount", int) = 6
-		_VatFrameCount ("VatFrameCount", int) = 6
 		_VatStartTimeSec ("VatStartTimeSec", float) = 0
 		_VatSpeed ("VatSpeed", float) = 1
 		[Toggle(VAT_LOOP)] _VatLoop ("Is animation loop", Int) = 1
@@ -28,7 +26,7 @@ Shader "PandaShad/Vat/VatSample"
 			#pragma shader_feature _ VAT_CTRL_WITH_RATE VAT_LOOP
 			
 			#include "UnityCG.cginc"
-			
+
 			//シェーダーの用途によってOn/Off
 			#define VAT_USE_NORMAL
 			//#define VAT_USE_TANGENT

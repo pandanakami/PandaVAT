@@ -3,9 +3,9 @@
 
 /******************************** property ***************************/
 uniform sampler2D _VatTex;	//頂点アニメーションテクスチャ
+uniform float4 _VatTex_TexelSize;
+
 uniform float _VatFps;		//頂点アニメーションテクスチャのFPS
-uniform int _VatVertexCount;//頂点アニメーションテクスチャの頂点数
-uniform int _VatFrameCount;//頂点アニメーションテクスチャのフレーム数
 
 UNITY_INSTANCING_BUFFER_START(VatProps)
 #if VAT_CTRL_WITH_RATE
@@ -36,10 +36,13 @@ struct VatDiffInfo
 #define VAT_SCALE (1)	//VAT位置情報受け渡し用補正値
 
 /******************************** static variable ***************************/
+static float _VatVertexCount = _VatTex_TexelSize.z; //頂点アニメーションテクスチャの頂点数
+static float _VatFrameCount = (_VatTex_TexelSize.w / 3); //頂点アニメーションテクスチャのフレーム数
+
 static float _VatDuration = (_VatFrameCount / _VatFps);//アニメーションクリップの総時間 秒
 static float _VatDeltaSec = (1.0 / _VatFps);//頂点アニメーションテクスチャの1フレームの時間 秒
 
-static float _Dx = 0.5 / _VatVertexCount;	//VAT取得用の補正値X
+static float _Dx = 0.5 / _VatTex_TexelSize.z; //VAT取得用の補正値X
 static float _Dy = (0.5 / _VatFrameCount);	//VAT取得用の補正値Y
 
 /******************************** prototype declaration ***************************/
