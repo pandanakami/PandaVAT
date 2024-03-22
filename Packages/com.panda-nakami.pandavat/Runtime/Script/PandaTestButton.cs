@@ -17,6 +17,7 @@ namespace PandaScript.PandaVat
 			_handler = GetComponent<PandaTestHandler>();
 		}
 
+#if UNITY_EDITOR
 		[CustomEditor(typeof(PandaTestButton))]
 		private class MyComponentEditor : Editor
 		{
@@ -30,5 +31,7 @@ namespace PandaScript.PandaVat
 				}
 			}
 		}
+#endif
 	}
+
 }
