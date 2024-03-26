@@ -9,10 +9,10 @@ uniform float _VatFps;		//頂点アニメーションテクスチャのFPS
 
 UNITY_INSTANCING_BUFFER_START(VatProps)
 #if VAT_CTRL_WITH_RATE
-UNITY_DEFINE_INSTANCED_PROP(float, _VatRate)//頂点アニメーション時間割合
+	UNITY_DEFINE_INSTANCED_PROP(float, _VatRate)//頂点アニメーション時間割合
 #else
-UNITY_DEFINE_INSTANCED_PROP(float, _VatStartTimeSec)//頂点アニメーション開始時間 秒
-UNITY_DEFINE_INSTANCED_PROP(float, _VatSpeed)//頂点アニメーションスピード
+	UNITY_DEFINE_INSTANCED_PROP(float, _VatStartTimeSec)//頂点アニメーション開始時間 秒
+	UNITY_DEFINE_INSTANCED_PROP(float, _VatSpeed)//頂点アニメーションスピード
 #endif
 UNITY_INSTANCING_BUFFER_END(VatProps)
 
@@ -23,13 +23,13 @@ struct VatDiffInfo
 {
 	float3 posDiff;		//位置差分
 	
-#ifdef VAT_USE_NORMAL
-	float3 normalDiff;	//法線差分
-#endif
+	#ifdef VAT_USE_NORMAL
+		float3 normalDiff;	//法線差分
+	#endif
 
-#ifdef VAT_USE_TANGENT
-	float4 tangentDiff;	//接線差分
-#endif
+	#ifdef VAT_USE_TANGENT
+		float4 tangentDiff;	//接線差分
+	#endif
 };
 
 /******************************** macro define ***************************/
@@ -57,27 +57,27 @@ inline VatDiffInfo GetVatDiff(uint vertexId)
 	float vertUvX = float(vertexId) / _VatVertexCount;
 	
 	///フレーム位置をとる(y)。
-#if VAT_CTRL_WITH_RATE
-	//プロパティの割合を指定
-	float frameRateRaw = UNITY_ACCESS_INSTANCED_PROP(VatProps, _VatRate);
-#else
-	
-	float speed = UNITY_ACCESS_INSTANCED_PROP(VatProps, _VatSpeed);
-	
-	//時間をとる
-	float diffTimeSec = (_Time.y - UNITY_ACCESS_INSTANCED_PROP(VatProps, _VatStartTimeSec)) * speed;
-	
-	
-#if VAT_LOOP
-	float posSec = fmod(diffTimeSec, _VatDuration);
-#else
-	float posSec = max(0, min(diffTimeSec, _VatDuration));
-	
-#endif
-	//フレーム位置をとる(y)。
-	float frameRateRaw = posSec / _VatDuration;
+	#if VAT_CTRL_WITH_RATE
+		//プロパティの割合を指定
+		float frameRateRaw = UNITY_ACCESS_INSTANCED_PROP(VatProps, _VatRate);
+	#else
+		
+		float speed = UNITY_ACCESS_INSTANCED_PROP(VatProps, _VatSpeed);
+		
+		//時間をとる
+		float diffTimeSec = (_Time.y - UNITY_ACCESS_INSTANCED_PROP(VatProps, _VatStartTimeSec)) * speed;
+		
+		
+		#if VAT_LOOP
+			float posSec = fmod(diffTimeSec, _VatDuration);
+		#else
+			float posSec = max(0, min(diffTimeSec, _VatDuration));
+			
+		#endif
+		//フレーム位置をとる(y)。
+		float frameRateRaw = posSec / _VatDuration;
 
-#endif
+	#endif
 	float maxRate = (_VatFps - 1) / float(_VatFps);
 	frameRateRaw *= maxRate;//1のとき uvが(fps-1)/fpsになるよう
 	float frameRateBefore = floor(frameRateRaw * _VatFps) / _VatFps;
@@ -107,17 +107,17 @@ inline VatDiffInfo _GetFrameAttribute(float vertRate, float frameRate)
 	//位置
 	o.posDiff = tex2Dlod(_VatTex, uv) / VAT_SCALE;
 	
-#ifdef VAT_USE_NORMAL
-	//Normal
-	uv.y += 0.33333333333;
-	o.normalDiff = tex2Dlod(_VatTex, uv);
-#endif
+	#ifdef VAT_USE_NORMAL
+		//Normal
+		uv.y += 0.33333333333;
+		o.normalDiff = tex2Dlod(_VatTex, uv);
+	#endif
 
-#ifdef VAT_USE_TANGENT
-	//Tangent
-	uv.y += 0.33333333333;
-	o.tangentDiff = tex2Dlod(_VatTex, uv);
-#endif
+	#ifdef VAT_USE_TANGENT
+		//Tangent
+		uv.y += 0.33333333333;
+		o.tangentDiff = tex2Dlod(_VatTex, uv);
+	#endif
 	return o;
 }
 
@@ -127,13 +127,13 @@ inline VatDiffInfo _MixVatAttribute(VatDiffInfo before, VatDiffInfo after, float
 	VatDiffInfo o;
 	o.posDiff = lerp(before.posDiff, after.posDiff, afterRate);
 
-#ifdef VAT_USE_NORMAL
-	o.normalDiff = lerp(before.normalDiff, after.normalDiff, afterRate);
-#endif
+	#ifdef VAT_USE_NORMAL
+		o.normalDiff = lerp(before.normalDiff, after.normalDiff, afterRate);
+	#endif
 
-#ifdef VAT_USE_TANGENT
-	o.tangentDiff = lerp(after.tangentDiff, after.tangentDiff, afterRate);
-#endif
+	#ifdef VAT_USE_TANGENT
+		o.tangentDiff = lerp(after.tangentDiff, after.tangentDiff, afterRate);
+	#endif
 	return o;
 }
 

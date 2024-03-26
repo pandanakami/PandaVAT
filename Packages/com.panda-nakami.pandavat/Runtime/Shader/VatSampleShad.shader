@@ -30,22 +30,23 @@ Shader "PandaShad/Vat/VatSample"
 			//シェーダーの用途によってOn/Off
 			#define VAT_USE_NORMAL
 			//#define VAT_USE_TANGENT
-			#include "Packages/com.panda-nakami.pandavat/Runtime/Shader/PandaVat.cginc"
 			
+			#include "Packages/com.panda-nakami.pandavat/Runtime/Shader/PandaVat.cginc"
+
 			struct appdata
 			{
-				float4 vertex: POSITION;
-				float2 uv: TEXCOORD0;
-				uint vid: SV_VertexID;
-				float3 normal: NORMAL;
+				float4 vertex : POSITION;
+				float2 uv : TEXCOORD0;
+				uint vid : SV_VertexID;
+				float3 normal : NORMAL;
 				UNITY_VERTEX_INPUT_INSTANCE_ID
 			};
 			
 			struct v2f
 			{
-				float4 vertex: SV_POSITION;
-				float2 uv: TEXCOORD0;
-				float3 normalColor: NORMAL;
+				float4 vertex : SV_POSITION;
+				float2 uv : TEXCOORD0;
+				float3 normalColor : NORMAL;
 				UNITY_VERTEX_INPUT_INSTANCE_ID
 				UNITY_VERTEX_OUTPUT_STEREO
 			};
@@ -70,7 +71,7 @@ Shader "PandaShad/Vat/VatSample"
 				return o;
 			}
 			
-			fixed4 frag(v2f i): SV_Target
+			fixed4 frag(v2f i) : SV_Target
 			{
 				UNITY_SETUP_INSTANCE_ID(i);
 				UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
@@ -80,7 +81,6 @@ Shader "PandaShad/Vat/VatSample"
 				return col;
 			}
 			ENDCG
-			
 		}
 	}
 }

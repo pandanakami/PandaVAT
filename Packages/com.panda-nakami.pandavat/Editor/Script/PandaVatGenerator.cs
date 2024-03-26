@@ -1,4 +1,5 @@
 
+using System.Collections.Generic;
 using System.IO;
 using UnityEditor;
 using UnityEngine;
@@ -23,6 +24,8 @@ namespace PandaScript.PandaVat
 		private AnimationClip _animClip;
 		private Renderer _targetRenderer;
 		private Shader _targetShader;
+
+		private bool _RotationCompletionMode = false;
 
 		/******************* field ********************/
 
@@ -63,10 +66,10 @@ namespace PandaScript.PandaVat
 			}
 			GUILayout.EndHorizontal();
 
-			_rootAnim = (Animator)EditorGUILayout.ObjectField("Animation Root Object", _rootAnim, typeof(Animator), true);
-			_targetRenderer = (Renderer)EditorGUILayout.ObjectField("Target Renderer Object", _targetRenderer, typeof(Renderer), true);
-			_animClip = (AnimationClip)EditorGUILayout.ObjectField("Animation Clip", _animClip, typeof(AnimationClip), true);
+			_DispAnimatorSelector();
 			_targetShader = (Shader)EditorGUILayout.ObjectField("VAT Shader", _targetShader, typeof(Shader), true);
+
+			_RotationCompletionMode = EditorGUILayout.Toggle("Rotation Completion Mode", _RotationCompletionMode);
 
 			if (GUILayout.Button("Generate")) {
 				if (!_rootAnim || !_animClip || !_targetShader || !_targetRenderer) {
@@ -118,6 +121,100 @@ namespace PandaScript.PandaVat
 			}
 		}
 
+		private Renderer[] _renderers;
+		private bool _showMeshRenderers = false;
+		private AnimationClip[] _animationClips;
+		private bool _showAnimationClips = false;
+
+
+		/// <summary>
+		/// アニメーターの指定とレンダラーとアニメーションクリップ選択
+		/// </summary>
+		private void _DispAnimatorSelector()
+		{
+			var newAnim = (Animator)EditorGUILayout.ObjectField("Select GameObject", _rootAnim, typeof(Animator), true);
+			if (_rootAnim != newAnim) {
+				if (newAnim) {
+					_renderers = newAnim.GetComponentsInChildren<Renderer>();
+					if (_renderers.Length == 0) {
+						_renderers = null;
+						_targetRenderer = null;
+					}
+					else {
+						_targetRenderer = _renderers[0];
+						_showMeshRenderers = true;
+
+					}
+
+					var controller = newAnim.runtimeAnimatorController; // RuntimeAnimatorControllerを取得
+					_animationClips = controller.animationClips;
+					if(_animationClips.Length == 0) {
+						_animationClips = null;
+						_animClip = null;
+					}
+					else {
+						_animClip = _animationClips[0];
+						_showAnimationClips= true;
+					}
+
+
+				}
+				else {
+					_renderers = null;
+					_targetRenderer = null;
+
+					_animationClips = null;
+					_animClip = null;
+				}
+
+			}
+			_rootAnim = newAnim;
+
+			if (_renderers != null) {
+
+				if (_targetRenderer != null) {
+					EditorGUILayout.ObjectField("Target Renderer", _targetRenderer, typeof(MeshRenderer), true);
+				}
+
+				_showMeshRenderers = EditorGUILayout.Foldout(_showMeshRenderers, "Select Renderer");
+
+				if (_showMeshRenderers) {
+					foreach (var meshRenderer in _renderers) {
+						EditorGUILayout.BeginHorizontal();
+						if (EditorGUILayout.Toggle(meshRenderer == _targetRenderer)) {
+							_targetRenderer = meshRenderer;
+						}
+						EditorGUILayout.ObjectField(meshRenderer, typeof(MeshRenderer), true);
+						EditorGUILayout.EndHorizontal();
+					}
+				}
+			}
+
+			if (_animationClips != null) {
+
+				if (_animClip != null) {
+					EditorGUILayout.ObjectField("Target Animation Clip", _animClip, typeof(AnimationClip), true);
+				}
+
+				_showAnimationClips = EditorGUILayout.Foldout(_showAnimationClips, "Select AnimClip");
+
+				if (_showAnimationClips) {
+					foreach (var animClip in _animationClips) {
+						EditorGUILayout.BeginHorizontal();
+						if (EditorGUILayout.Toggle(animClip == _animClip)) {
+							_animClip = animClip;
+						}
+						EditorGUILayout.ObjectField(animClip, typeof(MeshRenderer), true);
+						EditorGUILayout.EndHorizontal();
+					}
+				}
+			}
+		}
+
+		/// <summary>
+		/// VAT生成
+		/// </summary>
+		/// <param name="isSkinedMeshRenderer"></param>
 		private void _CreateVat(bool isSkinedMeshRenderer)
 		{
 			var rendererName = _targetRenderer.name;
@@ -143,6 +240,34 @@ namespace PandaScript.PandaVat
 			rootDummyT.localScale = rootT.lossyScale;
 
 			string dirName = _savePos;
+
+			//デフォルトメッシュに対して。
+			//各頂点に対して
+			//属するボーンを探す。ボーン複数NG
+			//ボーンと頂点の位置の差を取得
+			//一行目に書く
+			{
+				Mesh mesh = _targetSkinnedMeshRenderer.sharedMesh;
+				BoneWeight[] boneWeights = mesh.boneWeights;
+				Transform[] bones = _targetSkinnedMeshRenderer.bones;
+				var defaultDiffPos = _baseMesh.vertices;
+				for (var i = 0; i < vertexCount; i++) {
+					defaultDiffPos[i] = renderT.TransformPoint(defaultDiffPos[i]);
+
+					//bone0が100%前提。
+					var boneIndex = boneWeights[i].boneIndex0;
+					defaultDiffPos[i] -= bones[boneIndex].position;
+
+					Debug.Log("a");
+				}
+
+			}
+
+			//各フレームで
+			//各頂点に対して
+			//属するボーンのスケール・回転・平行移動を取得
+			//二行目以降に書く
+
 
 			//デフォルト情報保持
 			var defaultVertices = _baseMesh.vertices;
@@ -196,6 +321,25 @@ namespace PandaScript.PandaVat
 
 			texture.Apply();
 
+			_SaveAsset(texture, rendererName, isSkinedMeshRenderer, defaultVertices, defaultNormals, defaultTangents);
+			DestroyImmediate(rootDummyT.gameObject);
+		
+		}
+
+		/// <summary>
+		/// アセット保存
+		/// </summary>
+		/// <param name="texture"></param>
+		/// <param name="rendererName"></param>
+		/// <param name="isSkinedMeshRenderer"></param>
+		/// <param name="vertices"></param>
+		/// <param name="normals"></param>
+		/// <param name="tangents"></param>
+		private void _SaveAsset(Texture2D texture, string rendererName, bool isSkinedMeshRenderer, Vector3[] vertices, Vector3[] normals, Vector4[] tangents)
+		{
+
+			string dirName = _savePos;
+
 			var data = ImageConversion.EncodeToEXR(texture, Texture2D.EXRFlags.None);
 			Object.DestroyImmediate(texture);
 			var texPass = $"{dirName}/{rendererName}_{_animClip.name}.exr";
@@ -223,9 +367,9 @@ namespace PandaScript.PandaVat
 			{
 				newMesh = Instantiate(_baseMesh);
 				var meshPass = $"{dirName}/{_baseMesh.name}_vat.asset";
-				newMesh.vertices = defaultVertices;
-				newMesh.normals = defaultNormals;
-				newMesh.tangents = defaultTangents;
+				newMesh.vertices = vertices;
+				newMesh.normals = normals;
+				newMesh.tangents = tangents;
 
 				//ボーン変形情報削除
 				newMesh.boneWeights = null;
@@ -264,7 +408,7 @@ namespace PandaScript.PandaVat
 
 			//表示更新
 			AssetDatabase.Refresh();
-			Object.DestroyImmediate(rootDummyT.gameObject);
+
 			//シーン上にVAT化したオブジェクトを生成
 			{
 				var newObj = new GameObject(_rootObj.name + "_vat");

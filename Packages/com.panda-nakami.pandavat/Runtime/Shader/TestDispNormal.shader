@@ -17,16 +17,16 @@ Shader "PandaShad/Test/TestDispNormal"
 			
 			struct appdata
 			{
-				float4 vertex: POSITION;
-				float2 uv: TEXCOORD0;
-				float3 normal: NORMAL;
+				float4 vertex : POSITION;
+				float2 uv : TEXCOORD0;
+				float3 normal : NORMAL;
 			};
 			
 			struct v2f
 			{
-				float2 uv: TEXCOORD0;
-				float4 vertex: SV_POSITION;
-				float3 normal: NORMAL;
+				float2 uv : TEXCOORD0;
+				float4 vertex : SV_POSITION;
+				float3 normal : NORMAL;
 			};
 			
 			v2f vert(appdata v)
@@ -38,15 +38,14 @@ Shader "PandaShad/Test/TestDispNormal"
 				return o;
 			}
 			
-			fixed4 frag(v2f i): SV_Target
+			fixed4 frag(v2f i) : SV_Target
 			{
 				// sample the texture
 				fixed4 col = fixed4(i.normal, 1);
-				
+
 				return col;
 			}
 			ENDCG
-			
 		}
 	}
 }
