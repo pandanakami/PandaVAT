@@ -1,5 +1,7 @@
 /*/
-!com.vrchat.core.*
 /com.vrchat.core.vpm-resolver/
+/com.vrchat.base/
+/com.vrchat.worlds/
 # Change this to match your new package name
 !com.panda-nakami.pandavat
+

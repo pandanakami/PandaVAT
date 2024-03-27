@@ -1,17 +1,30 @@
 
+using System;
 using System.Collections.Generic;
 using System.IO;
+using System.Linq;
 using UnityEditor;
 using UnityEngine;
+using UnityEngine.Analytics;
+using Object = UnityEngine.Object;
 
 namespace PandaScript.PandaVat
 {
 
 	public class PandaVatGenerator : EditorWindow
-	{
-		private const float VAT_SCALE = 1;
+	{		
+		/// <summary>
+		/// æœ€å¤§é ‚ç‚¹æ•°
+		/// (å‹•ããªã‚‰å¤‰ãˆã¦ã„ã„ã‚ˆã€‚é ‚ç‚¹æ•°ãŒãƒ†ã‚¯ã‚¹ãƒãƒ£ã®æ¨ªå¹…ã ã‚ˆã€‚)
+		/// </summary>
+		private const int MAX_VERTEX_NUM = 8192;
 
-		private const float ANIM_FPS = 30;
+		/// <summary>
+		/// æœ€å¤§ãƒ•ãƒ¬ãƒ¼ãƒ æ•°
+		/// ã‚¢ãƒ‹ãƒ¡ã‚¯ãƒªãƒƒãƒ—ã®duration * æœ¬UIã§æŒ‡å®šã—ãŸFPS
+		/// (å‹•ããªã‚‰å¤‰ãˆã¦ã„ã„ã‚ˆã€‚ãƒ•ãƒ¬ãƒ¼ãƒ æ•°*3(å ´åˆã«ã‚ˆã£ã¦ã•ã‚‰ã«+1)ãŒãƒ†ã‚¯ã‚¹ãƒãƒ£ã®é«˜ã•ã ã‚ˆã€‚)
+		/// </summary>
+		private const int MAX_FRAME_NUM = 8192/3;
 
 		private const string DEFAULT_SAVE_POS = "Assets";
 
@@ -25,7 +38,12 @@ namespace PandaScript.PandaVat
 		private Renderer _targetRenderer;
 		private Shader _targetShader;
 
+
+		private int _animFps = 30;
+
 		private bool _RotationCompletionMode = false;
+
+		private Vector2 scrollPosition;
 
 		/******************* field ********************/
 
@@ -34,30 +52,50 @@ namespace PandaScript.PandaVat
 		private MeshRenderer _targetMeshRenderer = null;
 		private Mesh _baseMesh;
 
+
+
+		private Renderer[] _renderers;
+		private bool _showMeshRenderers = false;
+		private AnimationClip[] _animationClips;
+		private bool _showAnimationClips = false;
+
+		private bool _hasRendererError = false;
+		private bool _hasAnimationError = false;
+		private bool _hasModeError = false;
+		private string _ErrorCheckResult = null;
+
 		/******************* method ********************/
 
-		[MenuItem("‚Ï‚ñ‚¾ƒXƒNƒŠƒvƒg/VatGenerator")]
+		[MenuItem("ã±ã‚“ã ã‚¹ã‚¯ãƒªãƒ—ãƒˆ/VatGenerator")]
 		static void ShowWindow()
 		{
 			var window = GetWindow<PandaVatGenerator>("PandaVatGenerator");
 			window.minSize = new Vector2(300, 300);
 		}
 
+		/// <summary>
+		/// GUIãƒ¡ã‚¤ãƒ³
+		/// </summary>
 		private void OnGUI()
 		{
+			// ç¸¦æ–¹å‘ã®ã¿ã‚¹ã‚¯ãƒ­ãƒ¼ãƒ«å¯èƒ½ãªã‚¹ã‚¯ãƒ­ãƒ¼ãƒ«ãƒ“ãƒ¥ãƒ¼ã‚’é–‹å§‹
+			scrollPosition = GUILayout.BeginScrollView(scrollPosition, false, true);
+
+			DrawSeparator();
+
 			if (_savePos == null) {
 				_savePos = DEFAULT_SAVE_POS;
 			}
 			GUILayout.BeginHorizontal();
 			GUILayout.Label("Save Pos", GUILayout.Width(148));
 			_savePos = GUILayout.TextField(_savePos);
-			if (GUILayout.Button("‘I‘ğ", GUILayout.Width(40))) {
+			if (GUILayout.Button("é¸æŠ", GUILayout.Width(40))) {
 				string rootFullPath = _rootFullPath;
 
 				string path = EditorUtility.OpenFolderPanel("Select a folder", rootFullPath + _savePos, "");
 				if (!string.IsNullOrEmpty(path)) {
 					if (path.StartsWith(rootFullPath + DEFAULT_SAVE_POS)) {
-						_savePos = path.Replace(rootFullPath, "");//Assetsn‚Ü‚è‚É‚·‚é
+						_savePos = path.Replace(rootFullPath, "");//Assetså§‹ã¾ã‚Šã«ã™ã‚‹
 					}
 					else {
 						Debug.LogWarning("Invalid save pos. Please specify Assets Directory.");
@@ -66,30 +104,107 @@ namespace PandaScript.PandaVat
 			}
 			GUILayout.EndHorizontal();
 
-			_DispAnimatorSelector();
+			DrawSeparator();
+			//FPS
+			EditorGUI.BeginChangeCheck();
+			_animFps = EditorGUILayout.IntField("VAT Fps", _animFps);
+			if (EditorGUI.EndChangeCheck()) {
+				_CheckAnimClipEnable();
+			}
+			DrawSeparator();
+			//Rendererã¨AnimationClip
+			_DispAnimatorAndRendererSelector();
+			DrawSeparator();
+
+			//Shader
+			EditorGUI.BeginChangeCheck();
 			_targetShader = (Shader)EditorGUILayout.ObjectField("VAT Shader", _targetShader, typeof(Shader), true);
+			if (EditorGUI.EndChangeCheck()) {
+				_CheckMode();
+			}
+			DrawSeparator();
 
-			_RotationCompletionMode = EditorGUILayout.Toggle("Rotation Completion Mode", _RotationCompletionMode);
+			//å›è»¢è£œé–“ãƒ¢ãƒ¼ãƒ‰
+			EditorGUI.BeginChangeCheck();
+			_RotationCompletionMode = EditorGUILayout.Toggle("å›è»¢è£œé–“ãƒ¢ãƒ¼ãƒ‰", _RotationCompletionMode);
+			if (EditorGUI.EndChangeCheck()) {
+				_CheckMode();
+			}
+			DrawSeparator();
 
-			if (GUILayout.Button("Generate")) {
-				if (!_rootAnim || !_animClip || !_targetShader || !_targetRenderer) {
-					Debug.LogWarning("Insufficient input.");
-					return;
+			
+			var style = new GUIStyle();
+			var txt = "";
+			//å…¥åŠ›ã‚¨ãƒ©ãƒ¼ãƒã‚§ãƒƒã‚¯
+			var generateEnable = false;
+			{
+				if (!_animClip) {
+					style.normal.textColor = Color.red;
+					txt = "[Animatoræœªè¨­å®š]";
 				}
-				if (!Directory.Exists(_savePosFullPath)) {
-					Debug.LogError("Error. Invalid save pos");
-					return;
+				else if (!_animClip) {
+					style.normal.textColor = Color.red;
+					txt = "[AnimationClipãªã—]";
+				}
+				else if (!_targetRenderer) {
+					style.normal.textColor = Color.red;
+					txt = "[Rendererãªã—]";
+				}
+				else if (!_targetShader) {
+					style.normal.textColor = Color.red;
+					txt = "[Shaderæœªè¨­å®š]";
+				}
+				else if (_hasRendererError || _hasAnimationError || _hasModeError) {
+					style.normal.textColor = Color.red;
+					txt = _ErrorCheckResult;
+				}
+				else {
+					generateEnable = true;
+				}
+			}
+
+			if (generateEnable) {
+				if (_RotationCompletionMode) {
+					style.normal.textColor = Color.green;
+					if (_targetRenderer is SkinnedMeshRenderer) {
+						txt = "[å›è»¢è£œé–“ãƒ¢ãƒ¼ãƒ‰(SkinnedMeshRenderer)";
+					}
+					else if (_targetRenderer is MeshRenderer) {
+						txt = "[å›è»¢è£œé–“ãƒ¢ãƒ¼ãƒ‰(MeshRenderer)";
+					}
+				}
+				else {
+					style.normal.textColor = Color.cyan;
+					if (_targetRenderer is SkinnedMeshRenderer) {
+						txt = "[é€šå¸¸ãƒ¢ãƒ¼ãƒ‰(SkinnedMeshRenderer)";
+					}
+					else if (_targetRenderer is MeshRenderer) {
+						txt = "[é€šå¸¸ãƒ¢ãƒ¼ãƒ‰(MeshRenderer)";
+					}
+				}
+			}
+
+			//ãƒ¢ãƒ¼ãƒ‰è¡¨ç¤º or ã‚¨ãƒ©ãƒ¼è¡¨ç¤º
+			EditorGUILayout.LabelField(txt, style);
+
+			GUI.enabled = generateEnable;
+
+			//ç”Ÿæˆ
+			if (GUILayout.Button("Generate", GUILayout.Height(40))) {
+				_savePos = CreateFoldersRecursivelyIfNotExist(_savePos);
+
+				//ã‚»ãƒƒãƒˆå¾Œã®å¤‰æ›´ã‚¨ãƒ©ãƒ¼ãƒã‚§ãƒƒã‚¯
+				_CheckRendererEnable();
+				_CheckAnimClipEnable();
+				_CheckMode();
+				if (_hasRendererError || _hasAnimationError || _hasModeError) {
+					throw new Exception(_ErrorCheckResult);
 				}
 
 				_targetSkinnedMeshRenderer = null;
 				_targetMeshRenderer = null;
 				_baseMesh = null;
 				_rootObj = _rootAnim.gameObject;
-
-				if (!_targetRenderer.transform.IsChildOf(_rootObj.transform)) {
-					Debug.LogError("Error. Target Renderer is not child of Abimator.");
-					return;
-				}
 
 				var isSkinnedMeshRenderer = true;
 
@@ -101,10 +216,6 @@ namespace PandaScript.PandaVat
 					isSkinnedMeshRenderer = false;
 					_targetMeshRenderer = _targetRenderer as MeshRenderer;
 					_baseMesh = _targetRenderer.GetComponent<MeshFilter>()?.sharedMesh;
-				}
-				else {
-					Debug.LogError("Not supported. Target renderer object should be a MeshRenderer or SkinnedMeshRenderer.");
-					return;
 				}
 
 				if (!_baseMesh) {
@@ -119,35 +230,36 @@ namespace PandaScript.PandaVat
 				_CreateVat(isSkinnedMeshRenderer);
 				Debug.Log($"Generate VAT Finish!!!");
 			}
+
+			GUI.enabled = true;
+
+			// ã‚¹ã‚¯ãƒ­ãƒ¼ãƒ«ãƒ“ãƒ¥ãƒ¼ã®çµ‚äº†
+			GUILayout.EndScrollView();
 		}
 
-		private Renderer[] _renderers;
-		private bool _showMeshRenderers = false;
-		private AnimationClip[] _animationClips;
-		private bool _showAnimationClips = false;
-
-
 		/// <summary>
-		/// ƒAƒjƒ[ƒ^[‚Ìw’è‚ÆƒŒƒ“ƒ_ƒ‰[‚ÆƒAƒjƒ[ƒVƒ‡ƒ“ƒNƒŠƒbƒv‘I‘ğ
+		/// ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚¿ãƒ¼ã®æŒ‡å®šã¨ãƒ¬ãƒ³ãƒ€ãƒ©ãƒ¼ã¨ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³ã‚¯ãƒªãƒƒãƒ—é¸æŠ
 		/// </summary>
-		private void _DispAnimatorSelector()
+		private void _DispAnimatorAndRendererSelector()
 		{
-			var newAnim = (Animator)EditorGUILayout.ObjectField("Select GameObject", _rootAnim, typeof(Animator), true);
-			if (_rootAnim != newAnim) {
-				if (newAnim) {
-					_renderers = newAnim.GetComponentsInChildren<Renderer>();
-					if (_renderers.Length == 0) {
+			EditorGUI.BeginChangeCheck();
+			_rootAnim = (Animator)EditorGUILayout.ObjectField("å¯¾è±¡ã®Animator", _rootAnim, typeof(Animator), true);
+			if (EditorGUI.EndChangeCheck()) {
+				if (_rootAnim) {
+					_renderers = _rootAnim.GetComponentsInChildren<Renderer>();
+					if (_renderers.Length == 0 || !_renderers.Any(o=>o is SkinnedMeshRenderer || o is MeshRenderer)) {
 						_renderers = null;
 						_targetRenderer = null;
 					}
 					else {
 						_targetRenderer = _renderers[0];
 						_showMeshRenderers = true;
+						_CheckRendererEnable();
 
 					}
 
-					var controller = newAnim.runtimeAnimatorController; // RuntimeAnimatorController‚ğæ“¾
-					_animationClips = controller.animationClips;
+					var controller = _rootAnim.runtimeAnimatorController; // RuntimeAnimatorControllerã‚’å–å¾—
+					_animationClips = controller.animationClips.Distinct().ToArray();
 					if(_animationClips.Length == 0) {
 						_animationClips = null;
 						_animClip = null;
@@ -155,6 +267,7 @@ namespace PandaScript.PandaVat
 					else {
 						_animClip = _animationClips[0];
 						_showAnimationClips= true;
+						_CheckAnimClipEnable();
 					}
 
 
@@ -168,43 +281,64 @@ namespace PandaScript.PandaVat
 				}
 
 			}
-			_rootAnim = newAnim;
 
 			if (_renderers != null) {
-
+				DrawSeparator();
 				if (_targetRenderer != null) {
-					EditorGUILayout.ObjectField("Target Renderer", _targetRenderer, typeof(MeshRenderer), true);
+					GUI.enabled = false;
+					EditorGUILayout.ObjectField("VATå¯¾è±¡ã®Renderer", _targetRenderer, typeof(MeshRenderer), true);
+					GUI.enabled = true;
 				}
 
-				_showMeshRenderers = EditorGUILayout.Foldout(_showMeshRenderers, "Select Renderer");
+				_showMeshRenderers = EditorGUILayout.Foldout(_showMeshRenderers, "Rendererä¸€è¦§");
 
 				if (_showMeshRenderers) {
-					foreach (var meshRenderer in _renderers) {
-						EditorGUILayout.BeginHorizontal();
-						if (EditorGUILayout.Toggle(meshRenderer == _targetRenderer)) {
-							_targetRenderer = meshRenderer;
+					foreach (var renderer in _renderers) {
+						if(renderer is not MeshRenderer && renderer is not SkinnedMeshRenderer) {
+							continue;
 						}
-						EditorGUILayout.ObjectField(meshRenderer, typeof(MeshRenderer), true);
+
+						EditorGUILayout.BeginHorizontal();
+						if (EditorGUILayout.Toggle(renderer == _targetRenderer)) {
+							var changeFlag = _targetRenderer != renderer;
+							_targetRenderer = renderer;
+							if (changeFlag) {
+								_CheckRendererEnable();
+							}
+						}
+						GUI.enabled = false;
+						EditorGUILayout.ObjectField(renderer, typeof(MeshRenderer), true);
+						GUI.enabled = true;
 						EditorGUILayout.EndHorizontal();
 					}
 				}
 			}
 
+
 			if (_animationClips != null) {
 
+				DrawSeparator();
 				if (_animClip != null) {
-					EditorGUILayout.ObjectField("Target Animation Clip", _animClip, typeof(AnimationClip), true);
+					GUI.enabled = false;
+					EditorGUILayout.ObjectField("å¯¾è±¡ã®AnimationClip", _animClip, typeof(AnimationClip), true);
+					GUI.enabled = true;
 				}
 
-				_showAnimationClips = EditorGUILayout.Foldout(_showAnimationClips, "Select AnimClip");
+				_showAnimationClips = EditorGUILayout.Foldout(_showAnimationClips, "AnimClipä¸€è¦§");
 
 				if (_showAnimationClips) {
 					foreach (var animClip in _animationClips) {
 						EditorGUILayout.BeginHorizontal();
 						if (EditorGUILayout.Toggle(animClip == _animClip)) {
+							var changeFlag = _animClip != animClip;
 							_animClip = animClip;
+							if (changeFlag) {
+								_CheckAnimClipEnable();
+							}
 						}
+						GUI.enabled = false;
 						EditorGUILayout.ObjectField(animClip, typeof(MeshRenderer), true);
+						GUI.enabled = true;
 						EditorGUILayout.EndHorizontal();
 					}
 				}
@@ -212,19 +346,136 @@ namespace PandaScript.PandaVat
 		}
 
 		/// <summary>
-		/// VAT¶¬
+		/// é¸æŠã—ãŸãƒ¬ãƒ³ãƒ€ãƒ©ãƒ¼ãŒVATåŒ–OKã‹èª¿ã¹ã‚‹
+		/// ãƒ€ãƒ¡ãªã‚‰ã‚¨ãƒ©ãƒ¼æƒ…å ±å…¥ã£ã¦GUIãƒ¡ã‚¤ãƒ³ã§ã‚¨ãƒ©ãƒ¼å‡¦ç†
+		/// </summary>
+		private void _CheckRendererEnable()
+		{
+			if (!_targetRenderer) {
+				_ErrorCheckResult = "[Rendererãªã—]";
+				_hasRendererError = true;
+				return;
+			}
+
+			bool isSkinnedMeshRenderer = false;
+			if (_targetRenderer is SkinnedMeshRenderer) {
+				_targetSkinnedMeshRenderer = _targetRenderer as SkinnedMeshRenderer;
+				_baseMesh = _targetSkinnedMeshRenderer.sharedMesh;
+				isSkinnedMeshRenderer = true;
+			}
+			else if (_targetRenderer is MeshRenderer) {
+				_targetMeshRenderer = _targetRenderer as MeshRenderer;
+				_baseMesh = _targetRenderer.GetComponent<MeshFilter>()?.sharedMesh;
+			}
+			else {
+				_ErrorCheckResult = "[éå¯¾å¿œã®Renderer]";
+				_hasRendererError = true;
+				return;
+			}
+
+			if (!_baseMesh) {
+				if (isSkinnedMeshRenderer) {
+					_ErrorCheckResult = "[Rendererã«ãƒ¡ãƒƒã‚·ãƒ¥æœªã‚»ãƒƒãƒˆ]";
+					_hasRendererError = true;
+				}
+				else {
+					_ErrorCheckResult = "[MeshFilterã«ãƒ¡ãƒƒã‚·ãƒ¥æœªã‚»ãƒƒãƒˆ]";
+					_hasRendererError = true;
+				}
+			}
+			else if (_baseMesh.vertexCount > MAX_VERTEX_NUM) {
+				_ErrorCheckResult = $"[é ‚ç‚¹æ•°ãŒ({MAX_VERTEX_NUM})ã‚’è¶…ãˆã¦ã„ã¾ã™]";
+				_hasRendererError = true;
+			}
+			else {
+				//ã‚¨ãƒ©ãƒ¼ãªã—
+				_ErrorCheckResult = null;
+				_hasRendererError = false;
+			}
+		}
+
+		/// <summary>
+		/// é¸æŠã—ãŸã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³ã‚¯ãƒªãƒƒãƒ—ãŒVATåŒ–OKã‹èª¿ã¹ã‚‹
+		/// </summary>
+		private void _CheckAnimClipEnable()
+		{
+			//Rendererã‚¨ãƒ©ãƒ¼ã‚’å„ªå…ˆ
+			if (_hasRendererError) {
+				return;
+			}
+			
+			if (!_animClip) {
+				_ErrorCheckResult = "[AnimationClipãªã—]";
+				_hasAnimationError = true;
+				return;
+			}
+			if (!(1 <= _animFps && _animFps <= 144)) {
+				_ErrorCheckResult = "[FPSç¯„å›²å¤–(1~144ã¾ã§)]";
+				_hasAnimationError = true;
+				return;
+			}
+
+			var duration = _animClip.length;  //ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³æ™‚é–“ã€€ç§’
+			var frameCount = Mathf.Max((int)(duration * _animFps + 1), 1);//ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³ãƒ•ãƒ¬ãƒ¼ãƒ æ•°
+
+			if(frameCount > MAX_FRAME_NUM) {
+				_ErrorCheckResult = $"[Frameæ•°(FpsåŠ å‘³)ãŒ{MAX_FRAME_NUM}ã‚’è¶…ãˆã¦ã„ã¾ã™]";
+				_hasAnimationError = true;
+			}
+			else {
+				_hasAnimationError = false;
+				_ErrorCheckResult = null;
+			}
+		}
+
+		/// <summary>
+		/// ãƒ¢ãƒ¼ãƒ‰ã®ãƒã‚§ãƒƒã‚¯
+		/// </summary>
+		private void _CheckMode()
+		{
+			//Renderer,Animã‚¨ãƒ©ãƒ¼ã‚’å„ªå…ˆ
+			if (_hasRendererError || _hasAnimationError) {
+				return;
+			}
+
+			if (_targetShader) {
+				var shaderIsRotationCompletionMode = _targetShader.FindPropertyIndex("_RotationCompletionMode") != -1;
+
+				if(shaderIsRotationCompletionMode != _RotationCompletionMode) {
+					if (_RotationCompletionMode) {
+						_ErrorCheckResult = "[ã‚»ãƒƒãƒˆã•ã‚Œã¦ã„ã‚‹ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã¯å›è»¢è£œé–“éå¯¾å¿œã§ã™]";
+					}
+					else {
+						_ErrorCheckResult = "[ã‚»ãƒƒãƒˆã•ã‚Œã¦ã„ã‚‹ã‚·ã‚§ãƒ¼ãƒ€ãƒ¼ã¯å›è»¢è£œé–“ç”¨ã§ã™]";
+					}
+					
+					_hasModeError = true;
+					return;
+				}
+			}
+
+			_hasModeError = false;
+			_ErrorCheckResult = null;
+
+		}
+		/************************************* VATç”Ÿæˆ ************************************************************/
+
+
+		/// <summary>
+		/// VATç”Ÿæˆ
 		/// </summary>
 		/// <param name="isSkinedMeshRenderer"></param>
 		private void _CreateVat(bool isSkinedMeshRenderer)
 		{
 			var rendererName = _targetRenderer.name;
 
-			var vertexCount = _baseMesh.vertexCount;    //’¸“_”
-			var duration = _animClip.length;  //ƒAƒjƒ[ƒVƒ‡ƒ“ŠÔ@•b
-			var frameCount = Mathf.Max((int)(duration * ANIM_FPS), 1);//ƒAƒjƒ[ƒVƒ‡ƒ“ƒtƒŒ[ƒ€”
+			var vertexCount = _baseMesh.vertexCount;    //é ‚ç‚¹æ•°
+			var duration = _animClip.length;  //ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³æ™‚é–“ã€€ç§’
+			var frameCount = Mathf.Max((int)(duration * _animFps + 1), 1);//ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³ãƒ•ãƒ¬ãƒ¼ãƒ æ•°
 
-			//ƒeƒNƒXƒ`ƒƒ—pˆÓ
-			var texture = new Texture2D(vertexCount, frameCount * 3, TextureFormat.RGBAHalf, false, false);
+			//ãƒ†ã‚¯ã‚¹ãƒãƒ£ç”¨æ„
+			var frameCount_ = _RotationCompletionMode ? frameCount * 3 + 3 : frameCount * 3;
+			var texture = new Texture2D(vertexCount, frameCount_, TextureFormat.RGBAHalf, false, false);
 			texture.wrapMode = TextureWrapMode.Clamp;
 			texture.filterMode = FilterMode.Point;
 
@@ -232,110 +483,247 @@ namespace PandaScript.PandaVat
 			var rootT = _rootObj.transform;
 			var renderT = _targetRenderer.transform;
 
-			//ƒ_ƒ~[ƒ‹[ƒg—pˆÓ(ƒ‹[ƒg‚ª•ÏŒ`‚·‚éƒAƒjƒ[ƒVƒ‡ƒ“‚Ì‚Æ‚«‚à‚ ‚é‚Ì‚Å
-			var rootDummyObject = new GameObject();
-			var rootDummyT = rootDummyObject.transform;
-			rootDummyT.position = rootT.position;
-			rootDummyT.rotation = rootT.rotation;
-			rootDummyT.localScale = rootT.lossyScale;
-
-			string dirName = _savePos;
-
-			//ƒfƒtƒHƒ‹ƒgƒƒbƒVƒ…‚É‘Î‚µ‚ÄB
-			//Še’¸“_‚É‘Î‚µ‚Ä
-			//‘®‚·‚éƒ{[ƒ“‚ğ’T‚·Bƒ{[ƒ“•¡”NG
-			//ƒ{[ƒ“‚Æ’¸“_‚ÌˆÊ’u‚Ì·‚ğæ“¾
-			//ˆês–Ú‚É‘‚­
-			{
-				Mesh mesh = _targetSkinnedMeshRenderer.sharedMesh;
-				BoneWeight[] boneWeights = mesh.boneWeights;
-				Transform[] bones = _targetSkinnedMeshRenderer.bones;
-				var defaultDiffPos = _baseMesh.vertices;
-				for (var i = 0; i < vertexCount; i++) {
-					defaultDiffPos[i] = renderT.TransformPoint(defaultDiffPos[i]);
-
-					//bone0‚ª100%‘O’ñB
-					var boneIndex = boneWeights[i].boneIndex0;
-					defaultDiffPos[i] -= bones[boneIndex].position;
-
-					Debug.Log("a");
-				}
-
-			}
-
-			//ŠeƒtƒŒ[ƒ€‚Å
-			//Še’¸“_‚É‘Î‚µ‚Ä
-			//‘®‚·‚éƒ{[ƒ“‚ÌƒXƒP[ƒ‹E‰ñ“]E•½sˆÚ“®‚ğæ“¾
-			//“ñs–ÚˆÈ~‚É‘‚­
-
-
-			//ƒfƒtƒHƒ‹ƒgî•ñ•Û
+			//ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆæƒ…å ±ä¿æŒ
 			var defaultVertices = _baseMesh.vertices;
 			var defaultNormals = _baseMesh.normals;
 			var defaultTangents = _baseMesh.tangents;
 			for (var i = 0; i < vertexCount; i++) {
-				defaultVertices[i] = rootDummyT.InverseTransformPoint(renderT.TransformPoint(defaultVertices[i]));
-				defaultNormals[i] = rootDummyT.InverseTransformDirection(renderT.TransformDirection(defaultNormals[i]));
-				var tanXyz = rootDummyT.InverseTransformDirection(renderT.TransformDirection(defaultTangents[i]));
+				defaultVertices[i] = renderT.TransformPoint(defaultVertices[i]);
+				defaultNormals[i] = renderT.TransformDirection(defaultNormals[i]);
+				var tanXyz = renderT.TransformDirection(defaultTangents[i]);
 				defaultTangents[i].x = tanXyz.x;
 				defaultTangents[i].y = tanXyz.y;
 				defaultTangents[i].z = tanXyz.z;
 			}
 
-			//ƒeƒNƒXƒ`ƒƒ‚ÉŠi”[
+			//å›è»¢è£œæ­£ãƒ¢ãƒ¼ãƒ‰
+			if (_RotationCompletionMode) {
+				if (isSkinedMeshRenderer) {
+					_GenerateVATRotationSpecialSkinnedMeshRenderer(rootT, renderT, texture, vertexCount, frameCount, duration);
+				}
+				else {
+					_GenerateVATRotationSpecialMeshRenderer(rootT, renderT, texture, vertexCount, frameCount, duration);
+				}
+				
+			}
+			//é€šå¸¸ãƒ¢ãƒ¼ãƒ‰
+			else {
+				_GenerateVATCommon(rootT, renderT, texture, vertexCount, frameCount, duration, 
+					isSkinedMeshRenderer, defaultVertices, defaultNormals, defaultTangents);
+			}
+
+			_animClip.SampleAnimation(_rootObj, 0);//ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³ãƒªã‚»ãƒƒãƒˆ
+
+			texture.Apply();
+
+			//å„ç¨®ä¿å­˜
+			_SaveAsset(texture, rendererName, defaultVertices, defaultNormals, defaultTangents);
+			
+		
+		}
+
+		/// <summary>
+		/// VATç”Ÿæˆ(é€šå¸¸ç”¨)
+		/// </summary>
+		/// <param name="rootT">Animatorã®ãƒ«ãƒ¼ãƒˆTransform</param>
+		/// <param name="renderT">Rendererã®Transform</param>
+		/// <param name="texture">æ›¸ãè¾¼ã¿å¯¾è±¡ãƒ†ã‚¯ã‚¹ãƒãƒ£</param>
+		/// <param name="vertexCount">é ‚ç‚¹ã®æ•°</param>
+		/// <param name="frameCount">ãƒ•ãƒ¬ãƒ¼ãƒ æ•°</param>
+		/// <param name="duration">ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³ã®é•·ã•(ç§’)</param>
+		/// <param name="isSkinedMeshRenderer">ãƒ¬ãƒ³ãƒ€ãƒ©ãƒ¼ã®ç¨®é¡</param>
+		/// <param name="defaultVertices">ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆã®é ‚ç‚¹ä¸€è¦§</param>
+		/// <param name="defaultNormals">ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆã®æ³•ç·šä¸€è¦§</param>
+		/// <param name="defaultTangents">ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆã®æ¥ç·šä¸€è¦§</param>
+		private void _GenerateVATCommon(Transform rootT, Transform renderT, Texture2D texture, int vertexCount, int frameCount, float duration, 
+			bool isSkinedMeshRenderer, Vector3[] defaultVertices, Vector3[] defaultNormals, Vector4[] defaultTangents)
+		{
+
+			//ãƒ†ã‚¯ã‚¹ãƒãƒ£ã«æ ¼ç´
 			Mesh tmpMesh = new Mesh();
 			for (int frameIndex = 0; frameIndex < frameCount; frameIndex++) {
 
 				_animClip.SampleAnimation(_rootObj, ((float)frameIndex / (frameCount - 1)) * duration);
 				if (isSkinedMeshRenderer) {
-					_targetSkinnedMeshRenderer.BakeMesh(tmpMesh);
+					_targetSkinnedMeshRenderer.BakeMesh(tmpMesh, true);// useScale=trueã ã¨ãƒ«ãƒ¼ãƒˆã®ã‚¹ã‚±ãƒ¼ãƒ«ãŒå…¥ã‚‰ãªã„
 				}
 				else {
 					tmpMesh = _baseMesh;
 				}
-
 
 				Vector3[] vertices = tmpMesh.vertices;
 				Vector3[] normals = tmpMesh.normals;
 				Vector4[] tangents = tmpMesh.tangents;
 
 				for (int vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
-					Vector3 position = vertices[vertIndex]; //ƒXƒP[ƒ‹‚¾‚¯“ü‚Á‚Ä‚¢‚é
+					
+					Vector3 positionDiff = renderT.TransformPoint(vertices[vertIndex]) - defaultVertices[vertIndex];
+					Vector3 normalDiff = renderT.TransformDirection(normals[vertIndex]) - defaultNormals[vertIndex];
+					var tangent = renderT.TransformDirection(tangents[vertIndex]);
+					var tangentDiff = new Vector4(tangent.x, tangent.y, tangent.z, tangents[vertIndex].w) - defaultTangents[vertIndex];
 
-					position = rootDummyT.InverseTransformPoint(renderT.TransformPoint(vertices[vertIndex]));
-
-					position -= defaultVertices[vertIndex];
-
-					position *= VAT_SCALE;
-					Vector3 normal = rootDummyT.InverseTransformDirection(renderT.TransformDirection(normals[vertIndex])) - defaultNormals[vertIndex];
-					var tangentXyz = rootDummyT.InverseTransformDirection(renderT.TransformDirection(tangents[vertIndex]));
-					var tangent = new Vector4(tangentXyz.x, tangentXyz.y, tangentXyz.z, tangents[vertIndex].w) - defaultTangents[vertIndex];
-
-					texture.SetPixel(vertIndex, frameIndex, GetColor(position));
-					texture.SetPixel(vertIndex, frameIndex + frameCount, GetColor(normal));
-					texture.SetPixel(vertIndex, frameIndex + frameCount * 2, GetColor(tangent));
+					texture.SetPixel(vertIndex, frameIndex, GetColor(positionDiff));
+					texture.SetPixel(vertIndex, frameIndex + frameCount, GetColor(normalDiff));
+					texture.SetPixel(vertIndex, frameIndex + frameCount * 2, GetColor(tangentDiff));
 				}
 			}
-
-			_animClip.SampleAnimation(_rootObj, 0);//ƒAƒjƒ[ƒVƒ‡ƒ“ƒŠƒZƒbƒg
-
-			texture.Apply();
-
-			_SaveAsset(texture, rendererName, isSkinedMeshRenderer, defaultVertices, defaultNormals, defaultTangents);
-			DestroyImmediate(rootDummyT.gameObject);
-		
 		}
 
 		/// <summary>
-		/// ƒAƒZƒbƒg•Û‘¶
+		/// VATç”Ÿæˆ(å›è»¢è£œæ­£ç”¨ SkinnedMeshRenderer)
+		/// </summary>
+		/// <param name="rootT">Animatorã®ãƒ«ãƒ¼ãƒˆTransform</param>
+		/// <param name="renderT">Rendererã®Transform</param>
+		/// <param name="texture">æ›¸ãè¾¼ã¿å¯¾è±¡ãƒ†ã‚¯ã‚¹ãƒãƒ£</param>
+		/// <param name="vertexCount">é ‚ç‚¹ã®æ•°</param>
+		/// <param name="frameCount">ãƒ•ãƒ¬ãƒ¼ãƒ æ•°</param>
+		/// <param name="duration">ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³ã®é•·ã•(ç§’)</param>
+		private void _GenerateVATRotationSpecialSkinnedMeshRenderer(Transform rootT, Transform renderT, Texture2D texture, int vertexCount, int frameCount, float duration)
+		{
+
+			//ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆãƒ¡ãƒƒã‚·ãƒ¥ã«å¯¾ã—ã¦ã€‚
+			//å„é ‚ç‚¹ã«å¯¾ã—ã¦
+			//å±ã™ã‚‹ãƒœãƒ¼ãƒ³ã‚’æ¢ã™ã€‚ãƒœãƒ¼ãƒ³è¤‡æ•°NG
+			//ãƒœãƒ¼ãƒ³ã¨é ‚ç‚¹ã®ä½ç½®ã®å·®ã‚’å–å¾—
+			//æœ€çµ‚è¡Œã«æ›¸ã
+			{
+				BoneWeight[] boneWeights = _baseMesh.boneWeights;
+				Transform[] bones = _targetSkinnedMeshRenderer.bones;
+				var defaultDiffPos = _baseMesh.vertices;
+				var defaultDiffNormals = _baseMesh.normals;
+				var defaultDiffTangents= _baseMesh.tangents;
+
+				for (var vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
+					//ãƒ¡ãƒƒã‚·ãƒ¥ã®é ‚ç‚¹ â†’ ãƒ¯ãƒ¼ãƒ«ãƒ‰åº§æ¨™ â†’ ãƒ«ãƒ¼ãƒˆã‹ã‚‰ã®ãƒ­ãƒ¼ã‚«ãƒ«åº§æ¨™ã¸
+					defaultDiffPos[vertIndex] = rootT.InverseTransformPoint(renderT.TransformPoint(defaultDiffPos[vertIndex]));
+					defaultDiffNormals[vertIndex] = rootT.InverseTransformDirection(renderT.TransformDirection(defaultDiffNormals[vertIndex]));
+					defaultDiffTangents[vertIndex] = rootT.InverseTransformDirection(renderT.TransformDirection(defaultDiffTangents[vertIndex]));
+				}
+
+				for (var vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
+				
+
+					//bone0ãŒ100%å‰æã€‚
+					var boneIndex = boneWeights[vertIndex].boneIndex0;
+					var bonePos = rootT.InverseTransformPoint(bones[boneIndex].position);
+					defaultDiffPos[vertIndex] -= bonePos; //ãƒœãƒ¼ãƒ³ã¨ã®å·®
+
+					texture.SetPixel(vertIndex, frameCount * 3, GetColor(defaultDiffPos[vertIndex]));
+
+					//normal
+					
+					texture.SetPixel(vertIndex, frameCount * 3 + 1, GetColor(defaultDiffNormals[vertIndex]));
+
+					//tangent
+					float w = defaultDiffTangents[vertIndex].w;
+					
+					defaultDiffTangents[vertIndex].w = w;
+					texture.SetPixel(vertIndex, frameCount * 3 + 2, GetColor(defaultDiffTangents[vertIndex]));
+				}
+			}
+
+			//å„ãƒ•ãƒ¬ãƒ¼ãƒ ã§
+			//å„é ‚ç‚¹ã«å¯¾ã—ã¦
+			//å±ã™ã‚‹ãƒœãƒ¼ãƒ³ã®ã‚¹ã‚±ãƒ¼ãƒ«ãƒ»å›è»¢ãƒ»å¹³è¡Œç§»å‹•ã‚’å–å¾—
+
+			//ãƒ†ã‚¯ã‚¹ãƒãƒ£ã«æ ¼ç´
+			for (int frameIndex = 0; frameIndex < frameCount; frameIndex++) {
+
+				_animClip.SampleAnimation(_rootObj, ((float)frameIndex / (frameCount - 1)) * duration);
+
+				Transform[] bones = _targetSkinnedMeshRenderer.bones;
+				Mesh mesh = _targetSkinnedMeshRenderer.sharedMesh;
+				BoneWeight[] boneWeights = mesh.boneWeights;
+
+				for (int vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
+
+					//bone0ãŒ100%å‰æã€‚
+					var boneIndex = boneWeights[vertIndex].boneIndex0;
+					var boneT = bones[boneIndex];
+
+					var position = boneT.position;
+					var scale = boneT.lossyScale;
+					var rotation = boneT.rotation;
+
+					texture.SetPixel(vertIndex, frameIndex, GetColor(position));
+					texture.SetPixel(vertIndex, frameIndex + frameCount, GetColor(rotation));
+					texture.SetPixel(vertIndex, frameIndex + frameCount * 2, GetColor(scale));
+				}
+			}
+		}
+
+		/// <summary>
+		/// VATç”Ÿæˆ(å›è»¢è£œæ­£ç”¨ MeshRenderer)
+		/// </summary>
+		/// <param name="rootT">Animatorã®ãƒ«ãƒ¼ãƒˆTransform</param>
+		/// <param name="renderT">Rendererã®Transform</param>
+		/// <param name="texture">æ›¸ãè¾¼ã¿å¯¾è±¡ãƒ†ã‚¯ã‚¹ãƒãƒ£</param>
+		/// <param name="vertexCount">é ‚ç‚¹ã®æ•°</param>
+		/// <param name="frameCount">ãƒ•ãƒ¬ãƒ¼ãƒ æ•°</param>
+		/// <param name="duration">ã‚¢ãƒ‹ãƒ¡ãƒ¼ã‚·ãƒ§ãƒ³ã®é•·ã•(ç§’)</param>
+		private void _GenerateVATRotationSpecialMeshRenderer(Transform rootT, Transform renderT, Texture2D texture, int vertexCount, int frameCount, float duration)
+		{
+
+			//ãƒ‡ãƒ•ã‚©ãƒ«ãƒˆä½ç½®
+			//å„é ‚ç‚¹ã«å¯¾ã—ã¦
+			//ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆåº§æ¨™ã¨é ‚ç‚¹ã®ä½ç½®ã®å·®ã‚’å–å¾—
+			//æœ€çµ‚è¡Œã«æ›¸ã
+			{
+				var defaultDiffPos = _baseMesh.vertices;
+				var defaultDiffNormals = _baseMesh.normals;
+				var defaultDiffTangents = _baseMesh.tangents;
+				for (var vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
+					//ãƒ¡ãƒƒã‚·ãƒ¥ã®é ‚ç‚¹ â†’ ãƒ¯ãƒ¼ãƒ«ãƒ‰åº§æ¨™ â†’ ãƒ«ãƒ¼ãƒˆã‹ã‚‰ã®ãƒ­ãƒ¼ã‚«ãƒ«åº§æ¨™ã¸
+					defaultDiffPos[vertIndex] = rootT.InverseTransformPoint(renderT.TransformPoint(defaultDiffPos[vertIndex]));
+
+					var renderPos = rootT.InverseTransformPoint(renderT.position);
+					defaultDiffPos[vertIndex] -= renderPos; //ã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆåº§æ¨™ã¨ã®å·®
+
+					texture.SetPixel(vertIndex, frameCount * 3, GetColor(defaultDiffPos[vertIndex]));
+
+					//normal
+					defaultDiffNormals[vertIndex] = rootT.InverseTransformDirection(renderT.TransformDirection(defaultDiffNormals[vertIndex]));
+					texture.SetPixel(vertIndex, frameCount * 3 + 1, GetColor(defaultDiffNormals[vertIndex]));
+
+					//tangent
+					float w = defaultDiffTangents[vertIndex].w;
+					defaultDiffTangents[vertIndex] = rootT.InverseTransformDirection(renderT.TransformDirection(defaultDiffTangents[vertIndex]));
+					defaultDiffTangents[vertIndex].w = w;
+					texture.SetPixel(vertIndex, frameCount * 3 + 2, GetColor(defaultDiffTangents[vertIndex]));
+				}
+			}
+
+			//å„ãƒ•ãƒ¬ãƒ¼ãƒ ã§
+			//å„é ‚ç‚¹ã«å¯¾ã—ã¦
+			//å±ã™ã‚‹ãƒœãƒ¼ãƒ³ã®ã‚¹ã‚±ãƒ¼ãƒ«ãƒ»å›è»¢ãƒ»å¹³è¡Œç§»å‹•ã‚’å–å¾—
+
+			//ãƒ†ã‚¯ã‚¹ãƒãƒ£ã«æ ¼ç´
+			for (int frameIndex = 0; frameIndex < frameCount; frameIndex++) {
+
+				_animClip.SampleAnimation(_rootObj, ((float)frameIndex / (frameCount - 1)) * duration);
+
+				for (int vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
+
+					var position = renderT.position;
+					var scale = renderT.lossyScale;
+					var rotation = renderT.rotation;
+
+					texture.SetPixel(vertIndex, frameIndex, GetColor(position));
+					texture.SetPixel(vertIndex, frameIndex + frameCount, GetColor(rotation));
+					texture.SetPixel(vertIndex, frameIndex + frameCount * 2, GetColor(scale));
+				}
+			}
+		}
+		
+		/// <summary>
+		/// ã‚¢ã‚»ãƒƒãƒˆä¿å­˜
 		/// </summary>
 		/// <param name="texture"></param>
 		/// <param name="rendererName"></param>
-		/// <param name="isSkinedMeshRenderer"></param>
 		/// <param name="vertices"></param>
 		/// <param name="normals"></param>
 		/// <param name="tangents"></param>
-		private void _SaveAsset(Texture2D texture, string rendererName, bool isSkinedMeshRenderer, Vector3[] vertices, Vector3[] normals, Vector4[] tangents)
+		private void _SaveAsset(Texture2D texture, string rendererName, Vector3[] vertices, Vector3[] normals, Vector4[] tangents)
 		{
 
 			string dirName = _savePos;
@@ -347,7 +735,7 @@ namespace PandaScript.PandaVat
 			AssetDatabase.Refresh();
 			Debug.Log($"Create texture : {texPass}");
 
-			//‰æ‘œİ’è
+			//ç”»åƒè¨­å®š
 			{
 				TextureImporter textureImporter = AssetImporter.GetAtPath(texPass) as TextureImporter;
 				textureImporter.textureCompression = TextureImporterCompression.Uncompressed;
@@ -362,7 +750,7 @@ namespace PandaScript.PandaVat
 				AssetDatabase.ImportAsset(texPass, ImportAssetOptions.ForceUpdate);
 			}
 
-			//ƒƒbƒVƒ…ƒZƒbƒg
+			//ãƒ¡ãƒƒã‚·ãƒ¥ã‚»ãƒƒãƒˆ
 			Mesh newMesh;
 			{
 				newMesh = Instantiate(_baseMesh);
@@ -371,11 +759,11 @@ namespace PandaScript.PandaVat
 				newMesh.normals = normals;
 				newMesh.tangents = tangents;
 
-				//ƒ{[ƒ“•ÏŒ`î•ñíœ
+				//ãƒœãƒ¼ãƒ³å¤‰å½¢æƒ…å ±å‰Šé™¤
 				newMesh.boneWeights = null;
 				newMesh.bindposes = new Matrix4x4[0];
 
-				//ƒuƒŒƒ“ƒhƒVƒFƒCƒvíœ
+				//ãƒ–ãƒ¬ãƒ³ãƒ‰ã‚·ã‚§ã‚¤ãƒ—å‰Šé™¤
 				newMesh.ClearBlendShapes();
 
 				AssetDatabase.CreateAsset(newMesh, meshPass);
@@ -383,7 +771,7 @@ namespace PandaScript.PandaVat
 
 			}
 
-			//ê—pƒ}ƒeƒŠƒAƒ‹¶¬
+			//å°‚ç”¨ãƒãƒ†ãƒªã‚¢ãƒ«ç”Ÿæˆ
 			Material newMat;
 			{
 				var matPass = $"{dirName}/{rendererName}_{_animClip.name}.mat";
@@ -395,47 +783,37 @@ namespace PandaScript.PandaVat
 
 					isCreate = true;
 				}
+				else {
+					newMat.shader = _targetShader;
+				}
 
 				if (isCreate) {
 					AssetDatabase.CreateAsset(newMat, matPass);
 				}
 
+				newMat.enableInstancing = true;
+
 				var newTex = (Texture)AssetDatabase.LoadAssetAtPath(texPass, typeof(Texture));
 				newMat.SetTexture("_VatTex", newTex);
-				newMat.SetFloat("_VatFps", ANIM_FPS);
+				newMat.SetFloat("_VatFps", _animFps);
 				Debug.Log($"Create mesh : {matPass}");
 			}
 
-			//•\¦XV
+			//è¡¨ç¤ºæ›´æ–°
 			AssetDatabase.Refresh();
 
-			//ƒV[ƒ“ã‚ÉVAT‰»‚µ‚½ƒIƒuƒWƒFƒNƒg‚ğ¶¬
+			//ã‚·ãƒ¼ãƒ³ä¸Šã«VATåŒ–ã—ãŸã‚ªãƒ–ã‚¸ã‚§ã‚¯ãƒˆã‚’ç”Ÿæˆ
 			{
 				var newObj = new GameObject(_rootObj.name + "_vat");
 				var meshFilter = newObj.AddComponent<MeshFilter>();
 				var meshRenderer = newObj.AddComponent<MeshRenderer>();
 				meshFilter.mesh = newMesh;
 				meshRenderer.sharedMaterial = newMat;
-
-				//SkinnedMeshRenderer‚Íƒ‹[ƒg‚ÌƒXƒP[ƒ‹î•ñ‚ªmesh“à‚É“ü‚Á‚Ä‚¢‚ÄAâü—]‹ÈÜ‚Ì––AŒ‹‰Ê‚Éƒ‹[ƒg‚ÌƒXƒP[ƒ‹‚ª“ü‚Á‚Ä‚¢‚éB
-
-				if (!isSkinedMeshRenderer) {
-					//MeshRenderer‚ÍŒ‹‰Ê‚Éƒ‹[ƒg‚Ìƒ[ƒJƒ‹ˆÊ’uEŠp“xEƒXƒP[ƒ‹‚Í“ü‚Á‚Ä‚¢‚È‚¢B
-					//‚È‚Ì‚ÅŒ³ƒIƒuƒWƒFƒNƒg‚ÉŠp“xEƒXƒP[ƒ‹‚ğ‡‚í‚¹‚éBˆÊ’u‚ÍŒ³‚Ì‚ÆŒ©•ª‚¯‚é‚½‚ßŒ´“_‚ÉB
-					newObj.transform.localRotation = _rootObj.transform.rotation;
-					newObj.transform.localScale = _rootObj.transform.lossyScale;
-				}
-				else {
-					//SkinnedMeshRenderer‚ÍŒ‹‰Ê‚Éƒ‹[ƒg‚Ìƒ[ƒJƒ‹ˆÊ’uEŠp“x‚Í“ü‚Á‚Ä‚¢‚È‚¢B
-					//SkinnedMeshRenderer‚Íƒ‹[ƒg‚ÌƒXƒP[ƒ‹î•ñ‚ªmesh“à‚É“ü‚Á‚Ä‚¢‚ÄAâü—]‹ÈÜ‚Ì––AŒ‹‰Ê‚Éƒ‹[ƒg‚ÌƒXƒP[ƒ‹‚ª“ü‚Á‚Ä‚¢‚éB
-					//‚È‚Ì‚ÅSkinnedMeshRenderer‚Ìê‡‚ÍƒAƒjƒ[ƒVƒ‡ƒ“‚Åƒ‹[ƒg‚ÌƒXƒP[ƒ‹•Ï‚¦‚é‚â‚Â‚Í”ñ‘Î‰B
-					//‚½‚Ô‚ñ•ö‚ê‚éB
-
-					//Œ³ƒIƒuƒWƒFƒNƒg‚ÉŠp“x‚ğ‡‚í‚¹‚éBˆÊ’u‚ÍŒ³‚Ì‚ÆŒ©•ª‚¯‚é‚½‚ßŒ´“_‚ÉB
-					newObj.transform.localRotation = _rootObj.transform.rotation;
-				}
 			}
 		}
+
+
+		/****************** UTIL *********************/
 
 		private Color GetColor(Vector3 data)
 		{
@@ -455,5 +833,53 @@ namespace PandaScript.PandaVat
 			col.a = data.w;
 			return col;
 		}
+		private Color GetColor(Quaternion data)
+		{
+			Color col;
+			col.r = data.x;
+			col.g = data.y;
+			col.b = data.z;
+			col.a = data.w;
+			return col;
+		}
+
+		private void DrawSeparator()
+		{
+			// ä»•åˆ‡ã‚Šç·šã®ã‚¹ã‚¿ã‚¤ãƒ«ã‚’è¨­å®š
+			GUIStyle separatorStyle = new GUIStyle(GUI.skin.box);
+			separatorStyle.border.top = 1;
+			separatorStyle.border.bottom = 1;
+			separatorStyle.margin.top = 10;
+			separatorStyle.margin.bottom = 10;
+			separatorStyle.fixedHeight = 2;
+
+			// ä»•åˆ‡ã‚Šç·šã‚’æç”»
+			GUILayout.Box(GUIContent.none, separatorStyle, GUILayout.ExpandWidth(true), GUILayout.Height(1));
+		}
+
+		private string CreateFoldersRecursivelyIfNotExist(string path)
+		{
+			// 'Assets' ã‹ã‚‰å§‹ã¾ã‚‰ãªã„ãƒ‘ã‚¹ã‚’æ­£ã—ã„å½¢ã«ä¿®æ­£
+			if (!path.StartsWith("Assets")) {
+				path = "Assets/" + path;
+			}
+
+			// ãƒ‘ã‚¹ãŒæ—¢ã«å­˜åœ¨ã™ã‚‹ã‹ç¢ºèª
+			if (!AssetDatabase.IsValidFolder(path)) {
+				// å­˜åœ¨ã—ãªã„å ´åˆã¯ã€è¦ªãƒ•ã‚©ãƒ«ãƒ€ã‚’ãƒã‚§ãƒƒã‚¯
+				string parentPath = Path.GetDirectoryName(path);
+
+				// è¦ªãƒ•ã‚©ãƒ«ãƒ€ã‚‚å†å¸°çš„ã«ä½œæˆ
+				CreateFoldersRecursivelyIfNotExist(parentPath);
+
+				// è¦ªãƒ•ã‚©ãƒ«ãƒ€ãŒä½œæˆã•ã‚ŒãŸã®ã§ã€ç›®çš„ã®ãƒ•ã‚©ãƒ«ãƒ€ã‚’ä½œæˆ
+				string newFolderName = Path.GetFileName(path);
+				AssetDatabase.CreateFolder(parentPath, newFolderName);
+			}
+
+			return path;
+		}
+
+		
 	}
 }

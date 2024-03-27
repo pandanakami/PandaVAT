@@ -1,6 +1,9 @@
 Shader "PandaShad/Test/TestDispNormal"
 {
-	Properties { }
+	Properties
+	{
+		[Toggle(IS_DISP_TANGENT)] _IsDispTangent ("IsDispTangent", Int) = 0
+	}
 	SubShader
 	{
 		Tags { "RenderType" = "Opaque" }
@@ -12,14 +15,18 @@ Shader "PandaShad/Test/TestDispNormal"
 			
 			#pragma vertex vert
 			#pragma fragment frag
-			
+			#pragma shader_feature _ IS_DISP_TANGENT
 			#include "UnityCG.cginc"
 			
 			struct appdata
 			{
 				float4 vertex : POSITION;
 				float2 uv : TEXCOORD0;
-				float3 normal : NORMAL;
+				#if IS_DISP_TANGENT
+					float4 tangent : TANGENT;
+				#else
+					float3 normal : NORMAL;
+				#endif
 			};
 			
 			struct v2f
@@ -34,7 +41,14 @@ Shader "PandaShad/Test/TestDispNormal"
 				v2f o;
 				o.vertex = UnityObjectToClipPos(v.vertex);
 				o.uv = v.uv;
-				o.normal = UnityObjectToWorldDir(v.normal) / 2 + 0.5;
+				o.normal = UnityObjectToWorldDir(
+					#if IS_DISP_TANGENT
+						v.tangent.xyz
+					#else
+						v.normal
+					#endif
+					
+				) / 2 + 0.5;
 				return o;
 			}
 			

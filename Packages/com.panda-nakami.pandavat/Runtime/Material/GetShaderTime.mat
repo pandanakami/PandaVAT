@@ -7,15 +7,15 @@ Material:
   m_CorrespondingSourceObject: {fileID: 0}
   m_PrefabInstance: {fileID: 0}
   m_PrefabAsset: {fileID: 0}
-  m_Name: TestDispNormalMat
-  m_Shader: {fileID: 4800000, guid: 38d0b761c82d2a444a60430bed82660d, type: 3}
+  m_Name: GetShaderTime
+  m_Shader: {fileID: 4800000, guid: 9fa39dec9ead28f48895a1414cdd40cd, type: 3}
   m_Parent: {fileID: 0}
   m_ModifiedSerializedProperties: 0
   m_ValidKeywords: []
   m_InvalidKeywords: []
   m_LightmapFlags: 4
   m_EnableInstancingVariants: 0
-  m_DoubleSidedGI: 1
+  m_DoubleSidedGI: 0
   m_CustomRenderQueue: -1
   stringTagMap: {}
   disabledShaderPasses: []
@@ -24,7 +24,6 @@ Material:
     serializedVersion: 3
     m_TexEnvs: []
     m_Ints: []
-    m_Floats:
-    - _IsDispTangent: 0
+    m_Floats: []
     m_Colors: []
   m_BuildTextureStacks: []

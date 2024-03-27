@@ -1,1 +1,2 @@
-# com.vrchat.pandanakami.pandavat by seij
+# PandaVAT
+see  [github](https://github.com/pandanakami/PandaVAT)
