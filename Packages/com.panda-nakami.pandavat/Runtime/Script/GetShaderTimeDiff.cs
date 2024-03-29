@@ -76,8 +76,6 @@ namespace PandaScript.PandaVat
 			//UdonでDiff呼ぶよりtransform.position.yを取った方が速いかもしれない。お試し。
 			transform.position = _Position;
 
-			Debug.Log($"aa:{_Diff}");
-
 			return _Diff;
 		}
 	}

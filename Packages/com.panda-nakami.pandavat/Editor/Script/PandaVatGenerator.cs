@@ -64,6 +64,7 @@ namespace PandaScript.PandaVat
 		private bool _hasModeError = false;
 		private string _ErrorCheckResult = null;
 
+
 		/******************* method ********************/
 
 		[MenuItem("ぱんだスクリプト/VatGenerator")]
@@ -487,24 +488,22 @@ namespace PandaScript.PandaVat
 			var defaultVertices = _baseMesh.vertices;
 			var defaultNormals = _baseMesh.normals;
 			var defaultTangents = _baseMesh.tangents;
+
+			//Renderのカスタム座標系を作る
+			var customRenderT = CreateCustomTransform(renderT, rootT.parent, null, null);
 			for (var i = 0; i < vertexCount; i++) {
-				defaultVertices[i] = renderT.TransformPoint(defaultVertices[i]);
-				defaultNormals[i] = renderT.TransformDirection(defaultNormals[i]);
-				var tanXyz = renderT.TransformDirection(defaultTangents[i]);
+				defaultVertices[i] = customRenderT.TransformPoint(defaultVertices[i]);
+				defaultNormals[i] = customRenderT.TransformVector(defaultNormals[i]);
+				var tanXyz = customRenderT.TransformVector(defaultTangents[i]);
 				defaultTangents[i].x = tanXyz.x;
 				defaultTangents[i].y = tanXyz.y;
 				defaultTangents[i].z = tanXyz.z;
 			}
+			DestroyImmediate(customRenderT.gameObject);
 
 			//回転補正モード
 			if (_RotationCompletionMode) {
-				if (isSkinedMeshRenderer) {
-					_GenerateVATRotationSpecialSkinnedMeshRenderer(rootT, renderT, texture, vertexCount, frameCount, duration);
-				}
-				else {
-					_GenerateVATRotationSpecialMeshRenderer(rootT, renderT, texture, vertexCount, frameCount, duration);
-				}
-				
+				_GenerateVATRotationCompletionMode(rootT, renderT, texture, vertexCount, frameCount, duration, isSkinedMeshRenderer);
 			}
 			//通常モード
 			else {
@@ -555,22 +554,28 @@ namespace PandaScript.PandaVat
 				Vector3[] normals = tmpMesh.normals;
 				Vector4[] tangents = tmpMesh.tangents;
 
+				var tmpT = new GameObject().transform;
+				var customRendererT = CreateCustomTransform(renderT, rootT.parent, null, tmpT);
+				
 				for (int vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
 					
-					Vector3 positionDiff = renderT.TransformPoint(vertices[vertIndex]) - defaultVertices[vertIndex];
-					Vector3 normalDiff = renderT.TransformDirection(normals[vertIndex]) - defaultNormals[vertIndex];
-					var tangent = renderT.TransformDirection(tangents[vertIndex]);
+					Vector3 positionDiff = customRendererT.TransformPoint(vertices[vertIndex]) - defaultVertices[vertIndex];
+					Vector3 normalDiff = customRendererT.TransformDirection(normals[vertIndex]) - defaultNormals[vertIndex];
+					var tangent = customRendererT.TransformDirection(tangents[vertIndex]);
 					var tangentDiff = new Vector4(tangent.x, tangent.y, tangent.z, tangents[vertIndex].w) - defaultTangents[vertIndex];
 
 					texture.SetPixel(vertIndex, frameIndex, GetColor(positionDiff));
 					texture.SetPixel(vertIndex, frameIndex + frameCount, GetColor(normalDiff));
 					texture.SetPixel(vertIndex, frameIndex + frameCount * 2, GetColor(tangentDiff));
 				}
+
+				DestroyImmediate(tmpT.gameObject);
+				DestroyImmediate(customRendererT.gameObject);
 			}
 		}
 
 		/// <summary>
-		/// VAT生成(回転補正用 SkinnedMeshRenderer)
+		/// VAT生成(回転補間用)
 		/// </summary>
 		/// <param name="rootT">AnimatorのルートTransform</param>
 		/// <param name="renderT">RendererのTransform</param>
@@ -578,45 +583,62 @@ namespace PandaScript.PandaVat
 		/// <param name="vertexCount">頂点の数</param>
 		/// <param name="frameCount">フレーム数</param>
 		/// <param name="duration">アニメーションの長さ(秒)</param>
-		private void _GenerateVATRotationSpecialSkinnedMeshRenderer(Transform rootT, Transform renderT, Texture2D texture, int vertexCount, int frameCount, float duration)
+		/// <param name="isSkinnedMeshRendere">SkinnedMeshrendererか否か</param>
+		private void _GenerateVATRotationCompletionMode(Transform rootT, Transform renderT, Texture2D texture, int vertexCount, int frameCount, float duration, bool isSkinnedMeshRendere)
 		{
+			var tmpT = new GameObject().transform;
 
+			Transform[] customBones;
 			//デフォルトメッシュに対して。
 			//各頂点に対して
 			//属するボーンを探す。ボーン複数NG
 			//ボーンと頂点の位置の差を取得
 			//最終行に書く
+
 			{
 				BoneWeight[] boneWeights = _baseMesh.boneWeights;
-				Transform[] bones = _targetSkinnedMeshRenderer.bones;
+				Transform[] bones = isSkinnedMeshRendere ? _targetSkinnedMeshRenderer.bones : new Transform[1] { renderT };
 				var defaultDiffPos = _baseMesh.vertices;
 				var defaultDiffNormals = _baseMesh.normals;
 				var defaultDiffTangents= _baseMesh.tangents;
 
-				for (var vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
-					//メッシュの頂点 → ワールド座標 → ルートからのローカル座標へ
-					defaultDiffPos[vertIndex] = rootT.InverseTransformPoint(renderT.TransformPoint(defaultDiffPos[vertIndex]));
-					defaultDiffNormals[vertIndex] = rootT.InverseTransformDirection(renderT.TransformDirection(defaultDiffNormals[vertIndex]));
-					defaultDiffTangents[vertIndex] = rootT.InverseTransformDirection(renderT.TransformDirection(defaultDiffTangents[vertIndex]));
+				//ルートとの差を持つトランスフォーム
+				customBones = new Transform[bones.Length];
+
+				//デフォルトボーンをカスタム座標系にする
+				for(var i = 0; i < bones.Length; i++) {
+					customBones[i] = CreateCustomTransform(bones[i], rootT.parent, null, tmpT);					
 				}
 
+				//レンダラーをカスタム座標系にする
+				var customRendererT = CreateCustomTransform(renderT, rootT.parent, null, tmpT);
+				
+				//カスタム座標系でのメッシュの頂点座標を取得
+				for (var vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
+					defaultDiffPos[vertIndex] = customRendererT.TransformPoint(defaultDiffPos[vertIndex]);
+					defaultDiffNormals[vertIndex] = customRendererT.TransformDirection(defaultDiffNormals[vertIndex]);
+					defaultDiffTangents[vertIndex] = customRendererT.TransformDirection(defaultDiffTangents[vertIndex]);
+				}
+				DestroyImmediate(customRendererT.gameObject);
+
+				//カスタム座標系で、メッシュの頂点座標からデフォルトボーンのトランスフォームを除いた座標をデフォルト座標として登録
+				//VATでは各フレームでの移動したボーン情報を持ち、このデフォルト座標にそのボーントランスフォームをセットすることでアニメーション後の座標を取得できる
 				for (var vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
 				
-
 					//bone0が100%前提。
-					var boneIndex = boneWeights[vertIndex].boneIndex0;
-					var bonePos = rootT.InverseTransformPoint(bones[boneIndex].position);
-					defaultDiffPos[vertIndex] -= bonePos; //ボーンとの差
+					var boneIndex = isSkinnedMeshRendere ?  boneWeights[vertIndex].boneIndex0 : 0;
+
+					defaultDiffPos[vertIndex] = customBones[boneIndex].InverseTransformPoint(defaultDiffPos[vertIndex]);
 
 					texture.SetPixel(vertIndex, frameCount * 3, GetColor(defaultDiffPos[vertIndex]));
 
 					//normal
-					
+					defaultDiffNormals[vertIndex] = customBones[boneIndex].InverseTransformDirection(defaultDiffNormals[vertIndex]);
 					texture.SetPixel(vertIndex, frameCount * 3 + 1, GetColor(defaultDiffNormals[vertIndex]));
 
 					//tangent
 					float w = defaultDiffTangents[vertIndex].w;
-					
+					defaultDiffTangents[vertIndex] = customBones[boneIndex].InverseTransformDirection(defaultDiffTangents[vertIndex]);
 					defaultDiffTangents[vertIndex].w = w;
 					texture.SetPixel(vertIndex, frameCount * 3 + 2, GetColor(defaultDiffTangents[vertIndex]));
 				}
@@ -625,96 +647,45 @@ namespace PandaScript.PandaVat
 			//各フレームで
 			//各頂点に対して
 			//属するボーンのスケール・回転・平行移動を取得
-
 			//テクスチャに格納
 			for (int frameIndex = 0; frameIndex < frameCount; frameIndex++) {
 
+				//アニメーション位置をシミュレート
 				_animClip.SampleAnimation(_rootObj, ((float)frameIndex / (frameCount - 1)) * duration);
 
-				Transform[] bones = _targetSkinnedMeshRenderer.bones;
-				Mesh mesh = _targetSkinnedMeshRenderer.sharedMesh;
+				Transform[] bones = isSkinnedMeshRendere ? _targetSkinnedMeshRenderer.bones : new Transform[1] { renderT };
+				Mesh mesh = isSkinnedMeshRendere ? _targetSkinnedMeshRenderer.sharedMesh : _baseMesh;
 				BoneWeight[] boneWeights = mesh.boneWeights;
 
+
+				//現フレームのボーンをカスタム座標系にする
+				for (var i = 0; i < bones.Length; i++) {
+					customBones[i] = CreateCustomTransform(bones[i], rootT.parent, customBones[i], tmpT);
+				}
+
 				for (int vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
 
 					//bone0が100%前提。
-					var boneIndex = boneWeights[vertIndex].boneIndex0;
-					var boneT = bones[boneIndex];
+					var boneIndex = isSkinnedMeshRendere ? boneWeights[vertIndex].boneIndex0 : 0;
+					var boneT = customBones[boneIndex];
 
-					var position = boneT.position;
-					var scale = boneT.lossyScale;
-					var rotation = boneT.rotation;
-
-					texture.SetPixel(vertIndex, frameIndex, GetColor(position));
-					texture.SetPixel(vertIndex, frameIndex + frameCount, GetColor(rotation));
-					texture.SetPixel(vertIndex, frameIndex + frameCount * 2, GetColor(scale));
-				}
-			}
-		}
-
-		/// <summary>
-		/// VAT生成(回転補正用 MeshRenderer)
-		/// </summary>
-		/// <param name="rootT">AnimatorのルートTransform</param>
-		/// <param name="renderT">RendererのTransform</param>
-		/// <param name="texture">書き込み対象テクスチャ</param>
-		/// <param name="vertexCount">頂点の数</param>
-		/// <param name="frameCount">フレーム数</param>
-		/// <param name="duration">アニメーションの長さ(秒)</param>
-		private void _GenerateVATRotationSpecialMeshRenderer(Transform rootT, Transform renderT, Texture2D texture, int vertexCount, int frameCount, float duration)
-		{
-
-			//デフォルト位置
-			//各頂点に対して
-			//オブジェクト座標と頂点の位置の差を取得
-			//最終行に書く
-			{
-				var defaultDiffPos = _baseMesh.vertices;
-				var defaultDiffNormals = _baseMesh.normals;
-				var defaultDiffTangents = _baseMesh.tangents;
-				for (var vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
-					//メッシュの頂点 → ワールド座標 → ルートからのローカル座標へ
-					defaultDiffPos[vertIndex] = rootT.InverseTransformPoint(renderT.TransformPoint(defaultDiffPos[vertIndex]));
-
-					var renderPos = rootT.InverseTransformPoint(renderT.position);
-					defaultDiffPos[vertIndex] -= renderPos; //オブジェクト座標との差
-
-					texture.SetPixel(vertIndex, frameCount * 3, GetColor(defaultDiffPos[vertIndex]));
-
-					//normal
-					defaultDiffNormals[vertIndex] = rootT.InverseTransformDirection(renderT.TransformDirection(defaultDiffNormals[vertIndex]));
-					texture.SetPixel(vertIndex, frameCount * 3 + 1, GetColor(defaultDiffNormals[vertIndex]));
-
-					//tangent
-					float w = defaultDiffTangents[vertIndex].w;
-					defaultDiffTangents[vertIndex] = rootT.InverseTransformDirection(renderT.TransformDirection(defaultDiffTangents[vertIndex]));
-					defaultDiffTangents[vertIndex].w = w;
-					texture.SetPixel(vertIndex, frameCount * 3 + 2, GetColor(defaultDiffTangents[vertIndex]));
-				}
-			}
-
-			//各フレームで
-			//各頂点に対して
-			//属するボーンのスケール・回転・平行移動を取得
-
-			//テクスチャに格納
-			for (int frameIndex = 0; frameIndex < frameCount; frameIndex++) {
-
-				_animClip.SampleAnimation(_rootObj, ((float)frameIndex / (frameCount - 1)) * duration);
-
-				for (int vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
-
-					var position = renderT.position;
-					var scale = renderT.lossyScale;
-					var rotation = renderT.rotation;
+					var position = boneT.localPosition;
+					var scale = boneT.localScale;
+					var rotation = boneT.localRotation;
 
 					texture.SetPixel(vertIndex, frameIndex, GetColor(position));
 					texture.SetPixel(vertIndex, frameIndex + frameCount, GetColor(rotation));
 					texture.SetPixel(vertIndex, frameIndex + frameCount * 2, GetColor(scale));
 				}
 			}
+
+			for (var i = 0; i < customBones.Length; i++) {
+				DestroyImmediate(customBones[i].gameObject);
+			}
+
+			DestroyImmediate(tmpT.gameObject);
 		}
-		
+
 		/// <summary>
 		/// アセット保存
 		/// </summary>
@@ -778,7 +749,7 @@ namespace PandaScript.PandaVat
 				newMat = (Material)AssetDatabase.LoadAssetAtPath(matPass, typeof(Material));
 				var isCreate = false;
 				if (!newMat) {
-					newMat = new Material(_targetRenderer.material);
+					newMat = new Material(_targetRenderer.sharedMaterial);
 					newMat.shader = _targetShader;
 
 					isCreate = true;
@@ -880,6 +851,67 @@ namespace PandaScript.PandaVat
 			return path;
 		}
 
-		
+
+		/// <summary>
+		/// parentを原点とした場合の相対座標となるカスタムトランスフォームを作る
+		/// 
+		/// 例：
+		/// parent(1,0,0)
+		///  - anim_root(0,1,0)
+		///   - render(0,0,1)
+		/// 
+		/// この時renderはparentから見て(0,1,1)にあり,
+		/// 戻り値のrenderのカスタムトランスフォームは原点から見て(0,1,1)にあるような座標系になる。
+		/// 
+		/// 
+		/// </summary>
+		/// <param name="src"></param>
+		/// <param name="parent"></param>
+		/// <param name="customRendererT"></param>
+		/// <param name="tmpT"></param>
+		/// <returns></returns>
+		Transform CreateCustomTransform(Transform src, Transform parent, Transform customRendererT, Transform tmpT)
+		{
+			if (!customRendererT) {
+				customRendererT = new GameObject().transform;
+			}
+			var tmpCreateFlag = false;
+			if (!tmpT) {
+				tmpT = new GameObject().transform;
+				tmpCreateFlag = true;
+			}
+
+			//入力Transform(コピー)をparentの子にすることで、コピーのローカル座標はparentと入力の差になる
+			CopyTransform(src, tmpT);
+			tmpT.parent = parent;
+
+			//出力をシーン直下にし、コピーのローカル座標を指定することで、出力は意図した座標系になる
+			customRendererT.parent = null;
+			customRendererT.localPosition = tmpT.localPosition;
+			customRendererT.localScale = tmpT.localScale;
+			customRendererT.localRotation = tmpT.localRotation;
+
+			if (tmpCreateFlag) {
+				DestroyImmediate(tmpT.gameObject);
+			}
+
+			return customRendererT;
+		}
+
+		/// <summary>
+		/// Transformコピー
+		/// </summary>
+		/// <param name="src"></param>
+		/// <param name="dst"></param>
+		void CopyTransform(Transform src, Transform dst)
+		{
+			var bk = dst.parent;
+			dst.parent = src;
+			dst.localPosition = Vector3.zero;
+			dst.localScale = Vector3.one;
+			dst.localRotation = Quaternion.identity;
+			dst.parent = bk;
+		}
+
 	}
 }

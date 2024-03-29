@@ -44,6 +44,7 @@ public class PandVatMaterialEditor : MaterialEditor
 
 		VAT_RATE_ID = Shader.PropertyToID("_VatRate");
 		TAG_DIC.Add(VAT_RATE_ID, "VAT割合");
+
 	}
 
 	public override void OnInspectorGUI()
