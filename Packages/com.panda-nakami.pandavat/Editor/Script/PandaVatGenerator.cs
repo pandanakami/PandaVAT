@@ -41,7 +41,7 @@ namespace PandaScript.PandaVat
 
 		private int _animFps = 30;
 
-		private bool _RotationInterpolatioinMode = false;
+		private bool _RotationInterpolationMode = false;
 
 		private Vector2 scrollPosition;
 
@@ -127,7 +127,7 @@ namespace PandaScript.PandaVat
 
 			//回転補間モード
 			EditorGUI.BeginChangeCheck();
-			_RotationInterpolatioinMode = EditorGUILayout.Toggle("回転補間モード", _RotationInterpolatioinMode);
+			_RotationInterpolationMode = EditorGUILayout.Toggle("回転補間モード", _RotationInterpolationMode);
 			if (EditorGUI.EndChangeCheck()) {
 				_CheckMode();
 			}
@@ -165,7 +165,7 @@ namespace PandaScript.PandaVat
 			}
 
 			if (generateEnable) {
-				if (_RotationInterpolatioinMode) {
+				if (_RotationInterpolationMode) {
 					style.normal.textColor = Color.green;
 					if (_targetRenderer is SkinnedMeshRenderer) {
 						txt = "[回転補間モード(SkinnedMeshRenderer)";
@@ -447,10 +447,10 @@ namespace PandaScript.PandaVat
 					return;
 				}
 
-				var shaderIsRotationInterpolatioinMode = _targetShader.FindPropertyIndex("_RotationInterpolatioinMode") != -1;
+				var shaderIsRotationInterpolationMode = _targetShader.FindPropertyIndex("_RotationInterpolationMode") != -1;
 
-				if(shaderIsRotationInterpolatioinMode != _RotationInterpolatioinMode) {
-					if (_RotationInterpolatioinMode) {
+				if(shaderIsRotationInterpolationMode != _RotationInterpolationMode) {
+					if (_RotationInterpolationMode) {
 						_ErrorCheckResult = "[セットされているシェーダーは回転補間非対応です]";
 					}
 					else {
@@ -482,7 +482,7 @@ namespace PandaScript.PandaVat
 			var frameCount = Mathf.Max((int)(duration * _animFps + 1), 1);//アニメーションフレーム数
 
 			//テクスチャ用意
-			var frameCount_ = _RotationInterpolatioinMode ? frameCount * 3 + 3 : frameCount * 3;
+			var frameCount_ = _RotationInterpolationMode ? frameCount * 3 + 3 : frameCount * 3;
 			var texture = new Texture2D(vertexCount, frameCount_, TextureFormat.RGBAHalf, false, false);
 			texture.wrapMode = TextureWrapMode.Clamp;
 			texture.filterMode = FilterMode.Point;
@@ -512,8 +512,8 @@ namespace PandaScript.PandaVat
 			DestroyImmediate(customRenderT.gameObject);
 
 			//回転補正モード
-			if (_RotationInterpolatioinMode) {
-				_GenerateVATRotationInterpolatioinMode(rootT, renderT, texture, vertexCount, frameCount, duration, isSkinedMeshRenderer);
+			if (_RotationInterpolationMode) {
+				_GenerateVATRotationInterpolationMode(rootT, renderT, texture, vertexCount, frameCount, duration, isSkinedMeshRenderer);
 			}
 			//通常モード
 			else {
@@ -599,7 +599,7 @@ namespace PandaScript.PandaVat
 		/// <param name="frameCount">フレーム数</param>
 		/// <param name="duration">アニメーションの長さ(秒)</param>
 		/// <param name="isSkinnedMeshRendere">SkinnedMeshrendererか否か</param>
-		private void _GenerateVATRotationInterpolatioinMode(Transform rootT, Transform renderT, Texture2D texture, int vertexCount, int frameCount, float duration, bool isSkinnedMeshRendere)
+		private void _GenerateVATRotationInterpolationMode(Transform rootT, Transform renderT, Texture2D texture, int vertexCount, int frameCount, float duration, bool isSkinnedMeshRendere)
 		{
 			var tmpT = new GameObject().transform;
 
@@ -789,7 +789,7 @@ namespace PandaScript.PandaVat
 
 
 				newMat.enableInstancing = true;
-				if (_RotationInterpolatioinMode) {
+				if (_RotationInterpolationMode) {
 					newMat.EnableKeyword("VAT_ROTATION_INTERPOLATION");
 				}
 				else {

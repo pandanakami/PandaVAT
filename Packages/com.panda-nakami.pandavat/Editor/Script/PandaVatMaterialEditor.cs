@@ -25,7 +25,7 @@ public class PandVatMaterialEditor : MaterialEditor
 		VAT_MAIN_ID = Shader.PropertyToID("_PandaVat");
 		TAG_DIC.Add(VAT_MAIN_ID, "VATのプロパティ表示");
 
-		VAT_ROTATION_IMTERPOLATION_ID = Shader.PropertyToID("_RotationInterpolatioinMode");
+		VAT_ROTATION_IMTERPOLATION_ID = Shader.PropertyToID("_RotationInterpolationMode");
 
 		VAT_TEX_ID = Shader.PropertyToID("_VatTex");
 		TAG_DIC.Add(VAT_TEX_ID, "VATテクスチャ");

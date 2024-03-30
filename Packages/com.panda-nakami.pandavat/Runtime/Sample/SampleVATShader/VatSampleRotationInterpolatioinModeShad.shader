@@ -1,4 +1,4 @@
-Shader "PandaShad/Vat/VatRotationInterpolatioinModeSample"
+Shader "PandaShad/Vat/VatRotationInterpolationModeSample"
 {
 	Properties
 	{
@@ -12,7 +12,7 @@ Shader "PandaShad/Vat/VatRotationInterpolatioinModeSample"
 		[HideInInspector]_VatStartTimeSec ("VatStartTimeSec", float) = 0
 		[HideInInspector]_VatSpeed ("VatSpeed", float) = 1
 		//回転補間用設定
-		[HideInInspector]_RotationInterpolatioinMode ("RotationInterpolatioinMode", Int) = 1
+		[HideInInspector]_RotationInterpolationMode ("RotationInterpolationMode", Int) = 1
 		//[  ここまでコピーしてね <]
 
 		//色にNormal表示するかTangent表示するか

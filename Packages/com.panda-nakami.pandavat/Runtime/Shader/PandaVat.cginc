@@ -45,7 +45,7 @@ static float _Dy = (0.5 / _TexelHeight);	//VAT取得用の補正値Y
 /********************************  ***************************/
 
 #if VAT_ROTATION_INTERPOLATION
-	#include "Packages/com.panda-nakami.pandavat/Runtime/Shader/PandaVatRotationInterpolatioinMode.cginc"
+	#include "Packages/com.panda-nakami.pandavat/Runtime/Shader/PandaVatRotationInterpolationMode.cginc"
 #else
 	#include "Packages/com.panda-nakami.pandavat/Runtime/Shader/PandaVatBasicMode.cginc"
 #endif
