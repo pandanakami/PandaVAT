@@ -491,6 +491,9 @@ namespace PandaScript.PandaVat
 			var rootT = _rootObj.transform;
 			var renderT = _targetRenderer.transform;
 
+			//既にアニメーションモード中の場合解除する
+			AnimationMode.StopAnimationMode();
+
 			//デフォルト情報保持
 			var defaultVertices = _baseMesh.vertices;
 			var defaultNormals = _baseMesh.normals;
@@ -508,9 +511,6 @@ namespace PandaScript.PandaVat
 			}
 			DestroyImmediate(customRenderT.gameObject);
 
-			// エディタモードでのアニメーション制御を有効にする
-			AnimationMode.StartAnimationMode();
-			
 			//回転補正モード
 			if (_RotationInterpolatioinMode) {
 				_GenerateVATRotationInterpolatioinMode(rootT, renderT, texture, vertexCount, frameCount, duration, isSkinedMeshRenderer);
@@ -521,7 +521,7 @@ namespace PandaScript.PandaVat
 					isSkinedMeshRenderer, defaultVertices, defaultNormals, defaultTangents);
 			}
 
-			AnimationMode.StopAnimationMode();
+
 
 			texture.Apply();
 
@@ -547,6 +547,8 @@ namespace PandaScript.PandaVat
 		private void _GenerateVABasic(Transform rootT, Transform renderT, Texture2D texture, int vertexCount, int frameCount, float duration, 
 			bool isSkinedMeshRenderer, Vector3[] defaultVertices, Vector3[] defaultNormals, Vector4[] defaultTangents)
 		{
+			// エディタモードでのアニメーション制御を有効にする
+			AnimationMode.StartAnimationMode();
 
 			//テクスチャに格納
 			Mesh tmpMesh = new Mesh();
@@ -583,6 +585,8 @@ namespace PandaScript.PandaVat
 				DestroyImmediate(tmpT.gameObject);
 				DestroyImmediate(customRendererT.gameObject);
 			}
+
+			AnimationMode.StopAnimationMode();
 		}
 
 		/// <summary>
@@ -655,6 +659,9 @@ namespace PandaScript.PandaVat
 				}
 			}
 
+			// エディタモードでのアニメーション制御を有効にする
+			AnimationMode.StartAnimationMode();
+
 			//各フレームで
 			//各頂点に対して
 			//属するボーンのスケール・回転・平行移動を取得
@@ -695,6 +702,8 @@ namespace PandaScript.PandaVat
 			}
 
 			DestroyImmediate(tmpT.gameObject);
+
+			AnimationMode.StopAnimationMode();
 		}
 
 		/// <summary>
@@ -894,7 +903,7 @@ namespace PandaScript.PandaVat
 		Transform CreateCustomTransform(Transform src, Transform parent, Transform customRendererT, Transform tmpT)
 		{
 			if (!customRendererT) {
-				customRendererT = new GameObject().transform;
+				customRendererT = new GameObject(src.name).transform;
 			}
 			var tmpCreateFlag = false;
 			if (!tmpT) {
