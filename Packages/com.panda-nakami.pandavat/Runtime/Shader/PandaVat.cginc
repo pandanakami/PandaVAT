@@ -41,6 +41,8 @@ static float _VatDeltaSec = (1.0 / _VatFps);//1フレームの時間[秒]
 static float _Dx = 0.5 / _VatVertexCount; //VAT取得用の補正値X
 static float _Dy = (0.5 / _TexelHeight);	//VAT取得用の補正値Y
 
+/******************************** prototype ***************************/
+inline void _GetRate(uint vertexId, out float vertUvX, out float frameRateBefore, out float frameRateAfter, out float afterRate);
 
 /********************************  ***************************/
 
@@ -50,5 +52,43 @@ static float _Dy = (0.5 / _TexelHeight);	//VAT取得用の補正値Y
 	#include "Packages/com.panda-nakami.pandavat/Runtime/Shader/PandaVatBasicMode.cginc"
 #endif
 
+//VAT座標用情報取得
+// => 頂点に対応するUV.x情報
+// => テクスチャ中のどのフレームをとるかの情報(前フレーム、次フレーム、今の時間での前次フレームの位置割合)
+inline void _GetRate(uint vertexId, out float vertUvX, out float frameRateBefore, out float frameRateAfter, out float afterRate)
+{
+	///頂点位置をとる(x)
+	vertUvX = float(vertexId) / _VatVertexCount;
+	
+	///フレーム位置をとる(y)。
+	#if VAT_CTRL_WITH_RATE
+		//プロパティの割合を指定
+		float frameRateRaw = UNITY_ACCESS_INSTANCED_PROP(VatProps, _VatRate);
+	#else
+		
+		float speed = UNITY_ACCESS_INSTANCED_PROP(VatProps, _VatSpeed);
+		
+		//時間をとる
+		float diffTimeSec = max(0, (_Time.y - UNITY_ACCESS_INSTANCED_PROP(VatProps, _VatStartTimeSec)) * speed);
+		
+		#if VAT_LOOP
+			float posSec = fmod(diffTimeSec, _VatDuration);
+		#else
+			float posSec = min(diffTimeSec, _VatDuration);
+			
+		#endif
+		//フレーム位置をとる(y)。
+		float frameRateRaw = posSec / _VatDuration;
+
+	#endif
+
+	//前VATフレーム位置
+	frameRateBefore = floor(frameRateRaw * _VatFrameCount) / _VatFrameCount;
+	//次VATフレーム位置
+	frameRateAfter = min(frameRateBefore + _VatDeltaFrameRate, 1);//最大割合時、0に戻ってしまうのを防ぐ
+
+	//前VATフレームと次VATフレームで、今の時間がどれだけ次VATフレームに寄っているか割合
+	afterRate = (frameRateRaw - frameRateBefore) / _VatDeltaFrameRate;
+}
 
 #endif

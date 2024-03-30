@@ -44,39 +44,15 @@ inline void ApplyVatInfo(uint vertexId, out float4 vertex
 #endif
 )
 {
-	///頂点位置をとる(x)
-	float vertUvX = float(vertexId) / _VatVertexCount;
-	
-	///フレーム位置をとる(y)。
-	#if VAT_CTRL_WITH_RATE
-		//プロパティの割合を指定
-		float frameRateRaw = UNITY_ACCESS_INSTANCED_PROP(VatProps, _VatRate);
-	#else
-		
-		float speed = UNITY_ACCESS_INSTANCED_PROP(VatProps, _VatSpeed);
-		
-		//時間をとる
-		float diffTimeSec = (_Time.y - UNITY_ACCESS_INSTANCED_PROP(VatProps, _VatStartTimeSec)) * speed;
-		
-		
-		#if VAT_LOOP
-			float posSec = fmod(diffTimeSec, _VatDuration);
-		#else
-			float posSec = max(0, min(diffTimeSec, _VatDuration));
-			
-		#endif
-		//フレーム位置をとる(y)。
-		float frameRateRaw = posSec / _VatDuration;
-
-	#endif
-
+	float vertUvX;
 	//前VATフレーム位置
-	float frameRateBefore = floor(frameRateRaw * _VatFrameCount) / _VatFrameCount;
+	float frameRateBefore;
 	//次VATフレーム位置
-	float frameRateAfter = min(frameRateBefore + _VatDeltaFrameRate, 1);//最大割合時、0に戻ってしまうのを防ぐ
-
+	float frameRateAfter;
 	//前VATフレームと次VATフレームで、今の時間がどれだけ次VATフレームに寄っているか割合
-	float afterRate = (frameRateRaw - frameRateBefore) / _VatDeltaFrameRate;
+	float afterRate;
+
+	_GetRate(vertexId, vertUvX, frameRateBefore, frameRateAfter, afterRate);
 
 	//前・次VATフレームのボーン情報を取得
 	VatBoneInfo before = _GetFrameAttribute(vertUvX, frameRateBefore);
