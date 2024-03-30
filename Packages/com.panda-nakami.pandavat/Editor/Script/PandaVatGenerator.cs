@@ -440,6 +440,13 @@ namespace PandaScript.PandaVat
 			}
 
 			if (_targetShader) {
+
+				if(_targetShader.FindPropertyIndex("_PandaVat") == -1) {
+					_ErrorCheckResult = "[セットされているシェーダーはVAT対象外のシェーダーです]";
+					_hasModeError = true;
+					return;
+				}
+
 				var shaderIsRotationCompletionMode = _targetShader.FindPropertyIndex("_RotationCompletionMode") != -1;
 
 				if(shaderIsRotationCompletionMode != _RotationCompletionMode) {
@@ -501,17 +508,20 @@ namespace PandaScript.PandaVat
 			}
 			DestroyImmediate(customRenderT.gameObject);
 
+			// エディタモードでのアニメーション制御を有効にする
+			AnimationMode.StartAnimationMode();
+			
 			//回転補正モード
 			if (_RotationCompletionMode) {
 				_GenerateVATRotationCompletionMode(rootT, renderT, texture, vertexCount, frameCount, duration, isSkinedMeshRenderer);
 			}
 			//通常モード
 			else {
-				_GenerateVATCommon(rootT, renderT, texture, vertexCount, frameCount, duration, 
+				_GenerateVABasic(rootT, renderT, texture, vertexCount, frameCount, duration, 
 					isSkinedMeshRenderer, defaultVertices, defaultNormals, defaultTangents);
 			}
 
-			_animClip.SampleAnimation(_rootObj, 0);//アニメーションリセット
+			AnimationMode.StopAnimationMode();
 
 			texture.Apply();
 
@@ -534,7 +544,7 @@ namespace PandaScript.PandaVat
 		/// <param name="defaultVertices">デフォルトの頂点一覧</param>
 		/// <param name="defaultNormals">デフォルトの法線一覧</param>
 		/// <param name="defaultTangents">デフォルトの接線一覧</param>
-		private void _GenerateVATCommon(Transform rootT, Transform renderT, Texture2D texture, int vertexCount, int frameCount, float duration, 
+		private void _GenerateVABasic(Transform rootT, Transform renderT, Texture2D texture, int vertexCount, int frameCount, float duration, 
 			bool isSkinedMeshRenderer, Vector3[] defaultVertices, Vector3[] defaultNormals, Vector4[] defaultTangents)
 		{
 
@@ -542,7 +552,8 @@ namespace PandaScript.PandaVat
 			Mesh tmpMesh = new Mesh();
 			for (int frameIndex = 0; frameIndex < frameCount; frameIndex++) {
 
-				_animClip.SampleAnimation(_rootObj, ((float)frameIndex / (frameCount - 1)) * duration);
+				AnimationMode.SampleAnimationClip(_rootObj, _animClip, ((float)frameIndex / (frameCount - 1)) * duration);
+
 				if (isSkinedMeshRenderer) {
 					_targetSkinnedMeshRenderer.BakeMesh(tmpMesh, true);// useScale=trueだとルートのスケールが入らない
 				}
@@ -651,7 +662,7 @@ namespace PandaScript.PandaVat
 			for (int frameIndex = 0; frameIndex < frameCount; frameIndex++) {
 
 				//アニメーション位置をシミュレート
-				_animClip.SampleAnimation(_rootObj, ((float)frameIndex / (frameCount - 1)) * duration);
+				AnimationMode.SampleAnimationClip(_rootObj, _animClip, ((float)frameIndex / (frameCount - 1)) * duration);
 
 				Transform[] bones = isSkinnedMeshRendere ? _targetSkinnedMeshRenderer.bones : new Transform[1] { renderT };
 				Mesh mesh = isSkinnedMeshRendere ? _targetSkinnedMeshRenderer.sharedMesh : _baseMesh;
