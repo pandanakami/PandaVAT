@@ -1,8 +1,6 @@
 #ifndef _PANDA_VAT_BASIC_H_
 #define _PANDA_VAT_BASIC_H_
 
-#include "Packages/com.panda-nakami.pandavat/Runtime/Shader/PandaVatCmn.cginc"
-
 /******************************** type define ***************************/
 
 //VAT差分情報構造体

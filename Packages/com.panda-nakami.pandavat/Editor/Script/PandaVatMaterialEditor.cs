@@ -7,6 +7,7 @@ using System.Collections.Generic;
 public class PandVatMaterialEditor : MaterialEditor
 {
 	int VAT_MAIN_ID = -1;
+	int VAT_ROTATION_IMTERPOLATION_ID = -1;
 	int VAT_TEX_ID = -1;
 	int VAT_FPS_ID = -1;
 	int VAT_START_TIME_SEC_ID = -1;
@@ -23,6 +24,8 @@ public class PandVatMaterialEditor : MaterialEditor
 
 		VAT_MAIN_ID = Shader.PropertyToID("_PandaVat");
 		TAG_DIC.Add(VAT_MAIN_ID, "VATのプロパティ表示");
+
+		VAT_ROTATION_IMTERPOLATION_ID = Shader.PropertyToID("_RotationInterpolatioinMode");
 
 		VAT_TEX_ID = Shader.PropertyToID("_VatTex");
 		TAG_DIC.Add(VAT_TEX_ID, "VATテクスチャ");
@@ -56,6 +59,21 @@ public class PandVatMaterialEditor : MaterialEditor
 			if (!isVisible) {
 				return;
 			}
+
+			//回転補間モード
+			var isSet = material.IsKeywordEnabled("PANDA_VAT_IDENTIFY");
+			if (material.HasInt(VAT_ROTATION_IMTERPOLATION_ID)) {
+				if (!isSet) {
+					material.EnableKeyword("VAT_ROTATION_INTERPOLATION");
+				}
+			}
+			else {
+				if (isSet) {
+					material.DisableKeyword("VAT_ROTATION_INTERPOLATION");
+				}
+			}
+			
+
 			//表示設定
 			var isDisplay = material.GetInt(VAT_MAIN_ID) == 1;
 			EditorGUI.BeginChangeCheck();
@@ -127,6 +145,7 @@ public class PandVatMaterialEditor : MaterialEditor
 			}
 			_DrawSeparator();
 		}
+
 
 		// ベースクラスのGUIを描画
 		base.OnInspectorGUI();

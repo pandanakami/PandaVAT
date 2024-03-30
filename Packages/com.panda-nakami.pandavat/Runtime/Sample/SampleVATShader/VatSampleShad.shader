@@ -29,13 +29,8 @@ Shader "PandaShad/Vat/VatSample"
 			#pragma vertex vert
 			#pragma fragment frag
 			#pragma multi_compile_instancing
+			
 			#pragma shader_feature _ IS_DISP_TANGENT
-
-			//[> ここも新しいシェーダーにコピーしてね]
-			#pragma shader_feature _ VAT_CTRL_WITH_RATE VAT_LOOP
-			#pragma shader_feature _ VAT_LOOP
-			//[  ここも新しいシェーダーにコピーしてね <]
-
 			
 			#include "UnityCG.cginc"
 
@@ -45,8 +40,8 @@ Shader "PandaShad/Vat/VatSample"
 				#define VAT_USE_TANGENT
 			#endif
 
-			//[> includeしてね (通常モード用)]
-			#include "Packages/com.panda-nakami.pandavat/Runtime/Shader/PandaVatBasicMode.cginc"
+			//[> includeしてね <]
+			#include "Packages/com.panda-nakami.pandavat/Runtime/Shader/PandaVat.cginc"
 
 			struct appdata
 			{

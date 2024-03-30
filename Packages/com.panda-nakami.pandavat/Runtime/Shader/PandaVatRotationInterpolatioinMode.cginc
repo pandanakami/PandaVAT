@@ -1,8 +1,6 @@
 #ifndef _PANDA_VAT_ROT_COMP_H_
 #define _PANDA_VAT_ROT_COMP_H_
 
-#include "Packages/com.panda-nakami.pandavat/Runtime/Shader/PandaVatCmn.cginc"
-
 /******************************** type define ***************************/
 
 struct VatBoneInfo

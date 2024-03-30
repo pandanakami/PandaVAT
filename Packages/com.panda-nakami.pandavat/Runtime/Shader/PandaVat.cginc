@@ -1,6 +1,15 @@
 #ifndef _PANDA_VAT_CMN_H_
 #define _PANDA_VAT_CMN_H_
 
+#pragma multi_compile PANDA_VAT_IDENTIFY
+#pragma shader_feature _ VAT_ROTATION_INTERPOLATION
+#pragma shader_feature _ VAT_CTRL_WITH_RATE VAT_LOOP
+#pragma shader_feature _ VAT_LOOP
+
+#if !PANDA_VAT
+
+#endif
+
 /******************************** property ***************************/
 uniform sampler2D _VatTex;	//頂点アニメーションテクスチャ
 uniform float4 _VatTex_TexelSize;
@@ -31,5 +40,15 @@ static float _VatDeltaSec = (1.0 / _VatFps);//1フレームの時間[秒]
 
 static float _Dx = 0.5 / _VatVertexCount; //VAT取得用の補正値X
 static float _Dy = (0.5 / _TexelHeight);	//VAT取得用の補正値Y
+
+
+/********************************  ***************************/
+
+#if VAT_ROTATION_INTERPOLATION
+	#include "Packages/com.panda-nakami.pandavat/Runtime/Shader/PandaVatRotationInterpolatioinMode.cginc"
+#else
+	#include "Packages/com.panda-nakami.pandavat/Runtime/Shader/PandaVatBasicMode.cginc"
+#endif
+
 
 #endif

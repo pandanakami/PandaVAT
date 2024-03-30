@@ -1,4 +1,4 @@
-Shader "PandaShad/Vat/VatRotationCompletionModeSample"
+Shader "PandaShad/Vat/VatRotationInterpolatioinModeSample"
 {
 	Properties
 	{
@@ -11,7 +11,8 @@ Shader "PandaShad/Vat/VatRotationCompletionModeSample"
 		[HideInInspector]_VatLoop ("Is animation loop", Int) = 1
 		[HideInInspector]_VatStartTimeSec ("VatStartTimeSec", float) = 0
 		[HideInInspector]_VatSpeed ("VatSpeed", float) = 1
-		[HideInInspector]_RotationCompletionMode ("RotationCompletionMode", Int) = 1
+		//回転補間用設定
+		[HideInInspector]_RotationInterpolatioinMode ("RotationInterpolatioinMode", Int) = 1
 		//[  ここまでコピーしてね <]
 
 		//色にNormal表示するかTangent表示するか
@@ -31,11 +32,6 @@ Shader "PandaShad/Vat/VatRotationCompletionModeSample"
 			#pragma fragment frag
 			#pragma multi_compile_instancing
 
-			//[> ここも新しいシェーダーにコピーしてね]
-			#pragma shader_feature _ VAT_CTRL_WITH_RATE VAT_LOOP
-			#pragma shader_feature _ VAT_LOOP
-			//[  ここも新しいシェーダーにコピーしてね <]
-
 			#pragma shader_feature _ IS_DISP_TANGENT
 			
 			#include "UnityCG.cginc"
@@ -46,8 +42,8 @@ Shader "PandaShad/Vat/VatRotationCompletionModeSample"
 				#define VAT_USE_TANGENT
 			#endif
 			
-			//[> includeしてね (回転補間用)]
-			#include "Packages/com.panda-nakami.pandavat/Runtime/Shader/PandaVatRotationCompletionMode.cginc"
+			//[> includeしてね <]
+			#include "Packages/com.panda-nakami.pandavat/Runtime/Shader/PandaVat.cginc"
 
 			struct appdata
 			{
