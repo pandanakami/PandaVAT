@@ -22,6 +22,8 @@ UNITY_INSTANCING_BUFFER_START(VatProps)
 #else
 	UNITY_DEFINE_INSTANCED_PROP(float, _VatStartTimeSec)//頂点アニメーション開始時間 秒
 	UNITY_DEFINE_INSTANCED_PROP(float, _VatSpeed)//頂点アニメーションスピード
+	UNITY_DEFINE_INSTANCED_PROP(float, _VatStartTimeOffset)//開始前時間 秒
+	UNITY_DEFINE_INSTANCED_PROP(float, _VatEndTimeOffset)//終了後時間 秒
 #endif
 UNITY_INSTANCING_BUFFER_END(VatProps)
 
@@ -52,6 +54,7 @@ inline void _GetRate(uint vertexId, out float vertUvX, out float frameRateBefore
 	#include "Packages/com.panda-nakami.pandavat/Runtime/Shader/PandaVatBasicMode.cginc"
 #endif
 
+
 //VAT座標用情報取得
 // => 頂点に対応するUV.x情報
 // => テクスチャ中のどのフレームをとるかの情報(前フレーム、次フレーム、今の時間での前次フレームの位置割合)
@@ -70,13 +73,22 @@ inline void _GetRate(uint vertexId, out float vertUvX, out float frameRateBefore
 		
 		//時間をとる
 		float diffTimeSec = max(0, (_Time.y - UNITY_ACCESS_INSTANCED_PROP(VatProps, _VatStartTimeSec)) * speed);
+
+		//  startOfst      _VatDuration     endOfst
+		// |----------|------------------|----------|
+		float startOffset = UNITY_ACCESS_INSTANCED_PROP(VatProps, _VatStartTimeOffset) ;
+		float endOffset = UNITY_ACCESS_INSTANCED_PROP(VatProps, _VatEndTimeOffset) ;
+		float totalDuration = _VatDuration + startOffset +endOffset;
 		
 		#if VAT_LOOP
-			float posSec = fmod(diffTimeSec, _VatDuration);
+			float posSec_ = fmod(diffTimeSec, totalDuration);
 		#else
-			float posSec = min(diffTimeSec, _VatDuration);
+			float posSec_ = min(diffTimeSec, totalDuration);
 			
 		#endif
+		//_VatDuration内の秒数に収める
+		float posSec = min(_VatDuration, max(0, posSec_ - startOffset));
+
 		//フレーム位置をとる(y)。
 		float frameRateRaw = posSec / _VatDuration;
 

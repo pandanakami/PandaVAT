@@ -15,6 +15,8 @@ namespace PandaScript.PandaVat
 		int VAT_START_TIME_SEC_ID = -1;
 		int VAT_SPEED_ID = -1;
 		int VAT_LOOP_ID = -1;
+		int VAT_START_TIME_OFFSET_ID = -1;
+		int VAT_END_TIME_OFFSET_ID = -1;
 		int VAT_CTRL_WITH_RATE_ID = -1;
 		int VAT_RATE_ID = -1;
 
@@ -41,6 +43,12 @@ namespace PandaScript.PandaVat
 			VAT_SPEED_ID = Shader.PropertyToID("_VatSpeed");
 			TAG_DIC.Add(VAT_SPEED_ID, "VATスピード");
 
+			VAT_START_TIME_OFFSET_ID = Shader.PropertyToID("_VatStartTimeOffset");
+			TAG_DIC.Add(VAT_START_TIME_OFFSET_ID, "開始前時間 [秒]");
+
+			VAT_END_TIME_OFFSET_ID = Shader.PropertyToID("_VatEndTimeOffset");
+			TAG_DIC.Add(VAT_END_TIME_OFFSET_ID, "開始後時間 [秒]");
+
 			VAT_LOOP_ID = Shader.PropertyToID("_VatLoop");
 			TAG_DIC.Add(VAT_LOOP_ID, "VATをループするか否か");
 
@@ -49,7 +57,6 @@ namespace PandaScript.PandaVat
 
 			VAT_RATE_ID = Shader.PropertyToID("_VatRate");
 			TAG_DIC.Add(VAT_RATE_ID, "VAT割合");
-
 		}
 
 		public override void OnInspectorGUI()
@@ -143,6 +150,14 @@ namespace PandaScript.PandaVat
 						_DisplayFloat(material, VAT_START_TIME_SEC_ID);
 						//スピード
 						_DisplayFloat(material, VAT_SPEED_ID);
+
+						//開始前時間
+						_DisplayFloat(material, VAT_START_TIME_OFFSET_ID);
+						
+						//開始後時間
+						_DisplayFloat(material, VAT_END_TIME_OFFSET_ID);
+
+						
 					}
 				}
 				_DrawSeparator();
