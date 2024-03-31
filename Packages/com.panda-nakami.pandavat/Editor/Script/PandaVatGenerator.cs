@@ -1,11 +1,9 @@
 
 using System;
-using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
 using UnityEngine;
-using UnityEngine.Analytics;
 using Object = UnityEngine.Object;
 
 namespace PandaScript.PandaVat
@@ -22,9 +20,9 @@ namespace PandaScript.PandaVat
 		/// <summary>
 		/// 最大フレーム数
 		/// アニメクリップのduration * 本UIで指定したFPS
-		/// (動くなら変えていいよ。フレーム数*3(場合によってさらに+1)がテクスチャの高さだよ。)
+		/// (動くなら変えていいよ。フレーム数*3(場合によってさらに+3)がテクスチャの高さだよ。)
 		/// </summary>
-		private const int MAX_FRAME_NUM = 8192/3;
+		private const int MAX_FRAME_NUM = (8192-1)/3;
 
 		private const string DEFAULT_SAVE_POS = "Assets";
 
@@ -32,36 +30,83 @@ namespace PandaScript.PandaVat
 
 		private string _savePos;
 		private string _rootFullPath => Directory.GetParent(Application.dataPath).FullName.Replace("\\", "/") + "/";
-		private string _savePosFullPath => _rootFullPath + _savePos;
+
+		/// <summary>
+		/// Animator
+		/// </summary>
 		private Animator _rootAnim;
+		/// <summary>
+		/// AnimationClip
+		/// </summary>
 		private AnimationClip _animClip;
+		/// <summary>
+		/// VAT対象レンダラー
+		/// </summary>
 		private Renderer _targetRenderer;
+		/// <summary>
+		/// VATシェーダー
+		/// </summary>
 		private Shader _targetShader;
-
-
+		/// <summary>
+		/// 出力FPS
+		/// </summary>
 		private int _animFps = 30;
 
-		private bool _RotationInterpolationMode = false;
-
-		private Vector2 scrollPosition;
 
 		/******************* field ********************/
 
+		/// <summary>
+		/// AnimatorのGameObject
+		/// </summary>
 		private GameObject _rootObj;
-		private SkinnedMeshRenderer _targetSkinnedMeshRenderer = null;
-		private MeshRenderer _targetMeshRenderer = null;
+		/// <summary>
+		/// メッシュ
+		/// </summary>
 		private Mesh _baseMesh;
 
-
-
+		/// <summary>
+		/// Animator下にあるRenderer一覧
+		/// </summary>
 		private Renderer[] _renderers;
+		/// <summary>
+		/// Renderer一覧表示フラグ
+		/// </summary>
 		private bool _showMeshRenderers = false;
+		/// <summary>
+		/// Animatorが持つClip一覧
+		/// </summary>
 		private AnimationClip[] _animationClips;
+		/// <summary>
+		/// Clip一覧表示フラグ
+		/// </summary>
 		private bool _showAnimationClips = false;
 
+		/// <summary>
+		/// モード設定(通常：false, 回転補間モード : true)
+		/// </summary>
+		private bool _RotationInterpolationMode = false;
+		/// <summary>
+		/// 画面スクロールの情報
+		/// </summary>
+		private Vector2 scrollPosition;
+
+		/******************* field Error情報 ********************/
+
+		/// <summary>
+		/// エラー情報：レンダラ―関係
+		/// </summary>
 		private bool _hasRendererError = false;
+		/// <summary>
+		/// エラー情報：アニメーション関係
+		/// </summary>
 		private bool _hasAnimationError = false;
+		/// <summary>
+		/// エラー情報：モード関係
+		/// </summary>
 		private bool _hasModeError = false;
+		/// <summary>
+		/// エラー情報：エラーメッセージ
+		/// </summary>
 		private string _ErrorCheckResult = null;
 
 
@@ -125,15 +170,9 @@ namespace PandaScript.PandaVat
 			}
 			DrawSeparator();
 
-			//回転補間モード
-			EditorGUI.BeginChangeCheck();
-			_RotationInterpolationMode = EditorGUILayout.Toggle("回転補間モード", _RotationInterpolationMode);
-			if (EditorGUI.EndChangeCheck()) {
-				_CheckMode();
-			}
-			DrawSeparator();
+			// スクロールビューの終了
+			GUILayout.EndScrollView();
 
-			
 			var style = new GUIStyle();
 			var txt = "";
 			//入力エラーチェック
@@ -202,20 +241,16 @@ namespace PandaScript.PandaVat
 					throw new Exception(_ErrorCheckResult);
 				}
 
-				_targetSkinnedMeshRenderer = null;
-				_targetMeshRenderer = null;
 				_baseMesh = null;
 				_rootObj = _rootAnim.gameObject;
 
 				var isSkinnedMeshRenderer = true;
 
 				if (_targetRenderer is SkinnedMeshRenderer) {
-					_targetSkinnedMeshRenderer = _targetRenderer as SkinnedMeshRenderer;
-					_baseMesh = _targetSkinnedMeshRenderer.sharedMesh;
+					_baseMesh = ((SkinnedMeshRenderer)_targetRenderer).sharedMesh;
 				}
 				else if (_targetRenderer is MeshRenderer) {
 					isSkinnedMeshRenderer = false;
-					_targetMeshRenderer = _targetRenderer as MeshRenderer;
 					_baseMesh = _targetRenderer.GetComponent<MeshFilter>()?.sharedMesh;
 				}
 
@@ -234,8 +269,7 @@ namespace PandaScript.PandaVat
 
 			GUI.enabled = true;
 
-			// スクロールビューの終了
-			GUILayout.EndScrollView();
+
 		}
 
 		/// <summary>
@@ -360,12 +394,10 @@ namespace PandaScript.PandaVat
 
 			bool isSkinnedMeshRenderer = false;
 			if (_targetRenderer is SkinnedMeshRenderer) {
-				_targetSkinnedMeshRenderer = _targetRenderer as SkinnedMeshRenderer;
-				_baseMesh = _targetSkinnedMeshRenderer.sharedMesh;
 				isSkinnedMeshRenderer = true;
+				_baseMesh = ((SkinnedMeshRenderer)_targetRenderer).sharedMesh;
 			}
 			else if (_targetRenderer is MeshRenderer) {
-				_targetMeshRenderer = _targetRenderer as MeshRenderer;
 				_baseMesh = _targetRenderer.GetComponent<MeshFilter>()?.sharedMesh;
 			}
 			else {
@@ -449,17 +481,7 @@ namespace PandaScript.PandaVat
 
 				var shaderIsRotationInterpolationMode = _targetShader.FindPropertyIndex("_RotationInterpolationMode") != -1;
 
-				if(shaderIsRotationInterpolationMode != _RotationInterpolationMode) {
-					if (_RotationInterpolationMode) {
-						_ErrorCheckResult = "[セットされているシェーダーは回転補間非対応です]";
-					}
-					else {
-						_ErrorCheckResult = "[セットされているシェーダーは回転補間用です]";
-					}
-					
-					_hasModeError = true;
-					return;
-				}
+				_RotationInterpolationMode = shaderIsRotationInterpolationMode;
 			}
 
 			_hasModeError = false;
@@ -547,6 +569,8 @@ namespace PandaScript.PandaVat
 		private void _GenerateVABasic(Transform rootT, Transform renderT, Texture2D texture, int vertexCount, int frameCount, float duration, 
 			bool isSkinedMeshRenderer, Vector3[] defaultVertices, Vector3[] defaultNormals, Vector4[] defaultTangents)
 		{
+			var targetSkinnedMeshRenderer = _targetRenderer as SkinnedMeshRenderer;
+
 			// エディタモードでのアニメーション制御を有効にする
 			AnimationMode.StartAnimationMode();
 
@@ -557,7 +581,7 @@ namespace PandaScript.PandaVat
 				AnimationMode.SampleAnimationClip(_rootObj, _animClip, ((float)frameIndex / (frameCount - 1)) * duration);
 
 				if (isSkinedMeshRenderer) {
-					_targetSkinnedMeshRenderer.BakeMesh(tmpMesh, true);// useScale=trueだとルートのスケールが入らない
+					targetSkinnedMeshRenderer.BakeMesh(tmpMesh, true);// useScale=trueだとルートのスケールが入らない
 				}
 				else {
 					tmpMesh = _baseMesh;
@@ -601,6 +625,8 @@ namespace PandaScript.PandaVat
 		/// <param name="isSkinnedMeshRendere">SkinnedMeshrendererか否か</param>
 		private void _GenerateVATRotationInterpolationMode(Transform rootT, Transform renderT, Texture2D texture, int vertexCount, int frameCount, float duration, bool isSkinnedMeshRendere)
 		{
+			var targetSkinnedMeshRenderer = _targetRenderer as SkinnedMeshRenderer;
+
 			var tmpT = new GameObject().transform;
 
 			Transform[] customBones;
@@ -612,7 +638,7 @@ namespace PandaScript.PandaVat
 
 			{
 				BoneWeight[] boneWeights = _baseMesh.boneWeights;
-				Transform[] bones = isSkinnedMeshRendere ? _targetSkinnedMeshRenderer.bones : new Transform[1] { renderT };
+				Transform[] bones = isSkinnedMeshRendere ? targetSkinnedMeshRenderer.bones : new Transform[1] { renderT };
 				var defaultDiffPos = _baseMesh.vertices;
 				var defaultDiffNormals = _baseMesh.normals;
 				var defaultDiffTangents= _baseMesh.tangents;
@@ -671,8 +697,8 @@ namespace PandaScript.PandaVat
 				//アニメーション位置をシミュレート
 				AnimationMode.SampleAnimationClip(_rootObj, _animClip, ((float)frameIndex / (frameCount - 1)) * duration);
 
-				Transform[] bones = isSkinnedMeshRendere ? _targetSkinnedMeshRenderer.bones : new Transform[1] { renderT };
-				Mesh mesh = isSkinnedMeshRendere ? _targetSkinnedMeshRenderer.sharedMesh : _baseMesh;
+				Transform[] bones = isSkinnedMeshRendere ? targetSkinnedMeshRenderer.bones : new Transform[1] { renderT };
+				Mesh mesh = isSkinnedMeshRendere ? targetSkinnedMeshRenderer.sharedMesh : _baseMesh;
 				BoneWeight[] boneWeights = mesh.boneWeights;
 
 
