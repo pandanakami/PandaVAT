@@ -52,6 +52,18 @@ namespace PandaScript.PandaVat
 		/// </summary>
 		private int _animFps = 30;
 
+		/// <summary>
+		/// GameObject出力先
+		/// </summary>
+		private Transform _outputTransform = null;
+		/// <summary>
+		/// GameObject既にある場合上書き
+		/// </summary>
+		private bool _isOverwriteGameobject = true;
+		/// <summary>
+		/// Asset既にある場合上書き
+		/// </summary>
+		private bool _isOverwriteAsset = true;
 
 		/******************* field ********************/
 
@@ -133,7 +145,7 @@ namespace PandaScript.PandaVat
 				_savePos = DEFAULT_SAVE_POS;
 			}
 			GUILayout.BeginHorizontal();
-			GUILayout.Label("Save Pos", GUILayout.Width(148));
+			GUILayout.Label("Asset保存場所", GUILayout.Width(148));
 			_savePos = GUILayout.TextField(_savePos);
 			if (GUILayout.Button("選択", GUILayout.Width(40))) {
 				string rootFullPath = _rootFullPath;
@@ -149,8 +161,14 @@ namespace PandaScript.PandaVat
 				}
 			}
 			GUILayout.EndHorizontal();
+			_isOverwriteAsset= EditorGUILayout.Toggle("Asset既にあったら上書き", _isOverwriteAsset);
 
 			DrawSeparator();
+
+			_outputTransform = (Transform)EditorGUILayout.ObjectField("オブジェクト生成位置", _outputTransform, typeof(Transform), true);
+			_isOverwriteGameobject = EditorGUILayout.Toggle("オブジェクト既にあったら上書き", _isOverwriteGameobject);
+			DrawSeparator();
+
 			//FPS
 			EditorGUI.BeginChangeCheck();
 			_animFps = EditorGUILayout.IntField("VAT Fps", _animFps);
@@ -241,17 +259,35 @@ namespace PandaScript.PandaVat
 		/// 外部からの生成
 		/// </summary>
 		/// <param name="savePos"></param>
+		/// <param name="createObjPos"></param>
 		/// <param name="fps"></param>
 		/// <param name="rootAnim"></param>
 		/// <param name="targetRenderer"></param>
 		/// <param name="clip"></param>
 		/// <param name="shader"></param>
-		public void GenerateVatManual(string savePos, int fps, Animator rootAnim, Renderer targetRenderer, AnimationClip clip, Shader shader)
+		/// <param name="isOverwriteAsset"></param>
+		/// <param name="isOverwriteGameObject"></param>
+		/// <exception cref="Exception"></exception>
+		public void GenerateVatManual(
+			string savePos, 
+			Transform createObjPos, 
+			int fps, 
+			Animator rootAnim, 
+			Renderer targetRenderer, 
+			AnimationClip clip, 
+			Shader shader,  
+			bool isOverwriteAsset = true, 
+			bool isOverwriteGameObject = true)
 		{
 			_savePos = savePos;
+			_outputTransform = createObjPos;
+			_isOverwriteAsset = isOverwriteAsset;
+			_isOverwriteGameobject = isOverwriteGameObject;
 			_animFps = fps;
 			_rootAnim = rootAnim;
+
 			_DispAnimatorAndRendererSelector(true);
+
 			if (_renderers.Contains(targetRenderer)) {
 				_targetRenderer = targetRenderer;
 			}
@@ -787,14 +823,17 @@ namespace PandaScript.PandaVat
 
 			var data = ImageConversion.EncodeToEXR(texture, Texture2D.EXRFlags.None);
 			Object.DestroyImmediate(texture);
-			var texPass = $"{dirName}/{rendererName}_{_animClip.name}.exr";
-			File.WriteAllBytes(texPass, data);
+			var texPath = $"{dirName}/{rendererName}_{_animClip.name}.exr";
+			if (!_isOverwriteAsset) {
+				texPath = AssetDatabase.GenerateUniqueAssetPath(texPath);
+			}
+			File.WriteAllBytes(texPath, data);
 			AssetDatabase.Refresh();
-			Debug.Log($"Create texture : {texPass}");
+			Debug.Log($"Create texture : {texPath}");
 
 			//画像設定
 			{
-				TextureImporter textureImporter = AssetImporter.GetAtPath(texPass) as TextureImporter;
+				TextureImporter textureImporter = AssetImporter.GetAtPath(texPath) as TextureImporter;
 				textureImporter.textureCompression = TextureImporterCompression.Uncompressed;
 				textureImporter.SetPlatformTextureSettings(new TextureImporterPlatformSettings {
 					overridden = true,
@@ -804,14 +843,17 @@ namespace PandaScript.PandaVat
 				textureImporter.filterMode = FilterMode.Point;
 				textureImporter.wrapMode = TextureWrapMode.Repeat;
 				textureImporter.mipmapEnabled = false;
-				AssetDatabase.ImportAsset(texPass, ImportAssetOptions.ForceUpdate);
+				AssetDatabase.ImportAsset(texPath, ImportAssetOptions.ForceUpdate);
 			}
 
 			//メッシュセット
 			Mesh newMesh;
 			{
 				newMesh = Instantiate(_baseMesh);
-				var meshPass = $"{dirName}/{_baseMesh.name}_vat.asset";
+				var meshPath = $"{dirName}/{_baseMesh.name}_vat.asset";
+				if (!_isOverwriteAsset) {
+					meshPath = AssetDatabase.GenerateUniqueAssetPath(meshPath);
+				}
 				newMesh.vertices = vertices;
 				newMesh.normals = normals;
 				newMesh.tangents = tangents;
@@ -823,16 +865,19 @@ namespace PandaScript.PandaVat
 				//ブレンドシェイプ削除
 				newMesh.ClearBlendShapes();
 
-				AssetDatabase.CreateAsset(newMesh, meshPass);
-				Debug.Log($"Create mesh : {meshPass}");
+				AssetDatabase.CreateAsset(newMesh, meshPath);
+				Debug.Log($"Create mesh : {meshPath}");
 
 			}
 
 			//専用マテリアル生成
 			Material newMat;
 			{
-				var matPass = $"{dirName}/{rendererName}_{_animClip.name}.mat";
-				newMat = (Material)AssetDatabase.LoadAssetAtPath(matPass, typeof(Material));
+				var matPath = $"{dirName}/{rendererName}_{_animClip.name}.mat";
+				if (!_isOverwriteAsset) {
+					matPath = AssetDatabase.GenerateUniqueAssetPath(matPath);
+				}
+				newMat = (Material)AssetDatabase.LoadAssetAtPath(matPath, typeof(Material));
 				var isCreate = false;
 				if (!newMat) {
 					newMat = new Material(_targetRenderer.sharedMaterial);
@@ -845,11 +890,11 @@ namespace PandaScript.PandaVat
 				}
 
 				if (isCreate) {
-					AssetDatabase.CreateAsset(newMat, matPass);
+					AssetDatabase.CreateAsset(newMat, matPath);
 				}
 
 
-				var newTex = (Texture)AssetDatabase.LoadAssetAtPath(texPass, typeof(Texture));
+				var newTex = (Texture)AssetDatabase.LoadAssetAtPath(texPath, typeof(Texture));
 				newMat.SetTexture("_VatTex", newTex);
 				newMat.SetFloat("_VatFps", _animFps);
 
@@ -863,7 +908,7 @@ namespace PandaScript.PandaVat
 				}
 				
 
-				Debug.Log($"Create mesh : {matPass}");
+				Debug.Log($"Create mesh : {matPath}");
 			}
 
 			//表示更新
@@ -871,11 +916,27 @@ namespace PandaScript.PandaVat
 
 			//シーン上にVAT化したオブジェクトを生成
 			{
-				var newObj = new GameObject(_rootObj.name + "_vat");
+				var objName = _rootObj.name + "_vat";
+				//あれば上書きする(古いの削除する)
+				if (_isOverwriteGameobject) {
+					var t = _outputTransform ? _outputTransform.Find(objName) : GameObject.Find(objName)?.transform;
+					if (t) {
+						DestroyImmediate(t.gameObject);
+					}
+				}
+				//上書きしない
+				else { 
+					objName = GetUniqueObjectName(_outputTransform, objName);
+				}
+				var newObj = new GameObject(objName);
 				var meshFilter = newObj.AddComponent<MeshFilter>();
 				var meshRenderer = newObj.AddComponent<MeshRenderer>();
 				meshFilter.mesh = newMesh;
 				meshRenderer.sharedMaterial = newMat;
+				newObj.transform.parent = _outputTransform;
+				newObj.transform.localPosition = Vector3.zero;
+				newObj.transform.localScale = Vector3.one;
+				newObj.transform.localRotation = Quaternion.identity;
 			}
 		}
 
@@ -1007,6 +1068,32 @@ namespace PandaScript.PandaVat
 			dst.localScale = Vector3.one;
 			dst.localRotation = Quaternion.identity;
 			dst.parent = bk;
+		}
+
+		/// <summary>
+		/// Uniqueなゲームオブジェクト名を取得
+		/// </summary>
+		/// <param name="parent"></param>
+		/// <param name="baseName"></param>
+		/// <returns></returns>
+		string GetUniqueObjectName(Transform parent, string baseName)
+		{
+			string newName = baseName;
+			int counter = 1;
+
+			if (parent) {
+				// 同名のGameObjectが存在する場合は、名前にサフィックスを付ける
+				while (parent.Find(newName)) {
+					newName = baseName + "_" + counter++;
+				}
+			}
+			else {
+				while (GameObject.Find(newName)) {
+					newName = baseName + "_" + counter++;
+				}
+			}
+			
+			return newName;
 		}
 
 	}
