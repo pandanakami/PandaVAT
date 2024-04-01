@@ -70,19 +70,28 @@ namespace PandaScript.PandaVat
 				}
 
 				//回転補間モード
-				var isSet = material.IsKeywordEnabled("PANDA_VAT_IDENTIFY");
+				var isRotMode = material.IsKeywordEnabled("VAT_ROTATION_INTERPOLATION");
 				if (material.HasInt(VAT_ROTATION_IMTERPOLATION_ID)) {
-					if (!isSet) {
+					if (!isRotMode) {
 						material.EnableKeyword("VAT_ROTATION_INTERPOLATION");
 					}
 				}
 				else {
-					if (isSet) {
+					if (isRotMode) {
 						material.DisableKeyword("VAT_ROTATION_INTERPOLATION");
 					}
 				}
+				var fontColorStyle = new GUIStyle();
 
-
+				if (isRotMode) {
+					fontColorStyle.normal.textColor = Color.green;
+					EditorGUILayout.LabelField("[回転補間モード]", fontColorStyle);
+				}
+				else {
+					fontColorStyle.normal.textColor = Color.cyan;
+					EditorGUILayout.LabelField("[通常モード]", fontColorStyle);
+				}
+				
 				//表示設定
 				var isDisplay = material.GetInt(VAT_MAIN_ID) == 1;
 				EditorGUI.BeginChangeCheck();
@@ -122,9 +131,8 @@ namespace PandaScript.PandaVat
 
 					//割合制御
 					if (isCtrlWithRate) {
-						var style = new GUIStyle();
-						style.normal.textColor = Color.green;
-						EditorGUILayout.LabelField("[割合で制御する]", style);
+						fontColorStyle.normal.textColor = Color.green;
+						EditorGUILayout.LabelField("[割合で制御する]", fontColorStyle);
 						var id = VAT_RATE_ID;
 						float val = material.GetFloat(id);
 						EditorGUI.BeginChangeCheck();
@@ -139,9 +147,8 @@ namespace PandaScript.PandaVat
 					}
 					//時間制御
 					else {
-						var style = new GUIStyle();
-						style.normal.textColor = Color.cyan;
-						EditorGUILayout.LabelField("[時間で制御する]", style);
+						fontColorStyle.normal.textColor = Color.cyan;
+						EditorGUILayout.LabelField("[時間で制御する]", fontColorStyle);
 						bool unuse;
 						//ループか否か
 						_DispToggleProp(material, VAT_LOOP_ID, "VAT_LOOP", out unuse);
