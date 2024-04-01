@@ -10,7 +10,7 @@ PandaVATはアニメーションをVAT(VertexAnimationTexture)化するための
 2. VCCで対象プロジェクトにPandaVATを追加
 
 ## その他の場合
-[Releases](releases)から最新取ってきていい感じにPackagesの下に入れてください
+[Releases](https://github.com/pandanakami/PandaVAT/releases)から最新取ってきていい感じにPackagesの下に入れてください
 
 # 使い方
 暫定書き。そのうちちゃんと書く。<br>
@@ -73,6 +73,9 @@ meshRenderer.SetPropertyBlock(materialPropertyBlock);
 通常のVATはテクスチャに頂点位置を書き込んでいる仕組み上、急速な回転に弱いです。<br>
 例えば30FPSで1フレームで90°回転するような立方体で、描画するタイミングが1.5/30秒の場合、1フレーム目と2フレーム目のちょうど中間になり、線形補完のせいで立方体がとても小さくなってしまいます。<br>
 回転補間モードは、これを防ぐために、テクスチャに各頂点が影響するボーンのPosition/Rotation/Scaleを持たせ、シェーダー内でRotationの補間にslerpを使用するようにしたモードです。<br>
+シェーダーを回転補間モードにするには以下サンプルを参考にしてください<br>
+Packages/com.panda-nakami.pandavat/Runtime/Sample/SampleVATShader/VatSampleRotationInterpolatioinModeShad.shader<br>
+<br>
 以下、メリット・デメリット・制約です。<br>
 <br>
 ・メリット<br>
