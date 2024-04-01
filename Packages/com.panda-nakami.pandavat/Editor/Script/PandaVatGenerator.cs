@@ -1,5 +1,6 @@
 
 using System;
+using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using UnityEditor;
@@ -849,15 +850,42 @@ namespace PandaScript.PandaVat
 			//メッシュセット
 			Mesh newMesh;
 			{
-				newMesh = Instantiate(_baseMesh);
 				var meshPath = $"{dirName}/{_baseMesh.name}_vat.asset";
-				if (!_isOverwriteAsset) {
-					meshPath = AssetDatabase.GenerateUniqueAssetPath(meshPath);
+
+				var oldMeshAsset = AssetDatabase.LoadAssetAtPath<Mesh>(meshPath);
+				var isCreate = false;
+				//上書き
+				if (_isOverwriteAsset) {
+					//既にある
+					if (oldMeshAsset) {
+						newMesh = oldMeshAsset;
+						newMesh.Clear();
+					}
+					else {
+						newMesh = Instantiate(_baseMesh);
+						isCreate = true;
+					}
 				}
+				//上書きしない
+				else {
+					newMesh = Instantiate(_baseMesh);
+					meshPath = AssetDatabase.GenerateUniqueAssetPath(meshPath);
+					isCreate = true;
+				}
+				
 				newMesh.vertices = vertices;
 				newMesh.normals = normals;
 				newMesh.tangents = tangents;
-
+				newMesh.triangles = _baseMesh.triangles;
+				var uvs = new List<Vector2>();
+				for (var i = 0; i < 8; i++) {
+					_baseMesh.GetUVs(i, uvs);
+					if (uvs.Count > 0) {
+						newMesh.SetUVs(i, uvs);
+					}
+					uvs.Clear();
+				}
+				
 				//ボーン変形情報削除
 				newMesh.boneWeights = null;
 				newMesh.bindposes = new Matrix4x4[0];
@@ -865,7 +893,9 @@ namespace PandaScript.PandaVat
 				//ブレンドシェイプ削除
 				newMesh.ClearBlendShapes();
 
-				AssetDatabase.CreateAsset(newMesh, meshPath);
+				if (isCreate) {
+					AssetDatabase.CreateAsset(newMesh, meshPath);
+				}
 				Debug.Log($"Create mesh : {meshPath}");
 
 			}
@@ -874,20 +904,26 @@ namespace PandaScript.PandaVat
 			Material newMat;
 			{
 				var matPath = $"{dirName}/{rendererName}_{_animClip.name}.mat";
-				if (!_isOverwriteAsset) {
-					matPath = AssetDatabase.GenerateUniqueAssetPath(matPath);
-				}
-				newMat = (Material)AssetDatabase.LoadAssetAtPath(matPath, typeof(Material));
+				var oldMatAsset = (Material)AssetDatabase.LoadAssetAtPath(matPath, typeof(Material));
 				var isCreate = false;
-				if (!newMat) {
+				//上書きする
+				if (_isOverwriteAsset) {
+					if (oldMatAsset) {
+						newMat = oldMatAsset;
+					}
+					else {
+						newMat = new Material(_targetRenderer.sharedMaterial);
+						isCreate = true;
+					}
+					
+				}
+				//上書きしない
+				else {
+					matPath = AssetDatabase.GenerateUniqueAssetPath(matPath);
 					newMat = new Material(_targetRenderer.sharedMaterial);
-					newMat.shader = _targetShader;
-
 					isCreate = true;
 				}
-				else {
-					newMat.shader = _targetShader;
-				}
+				newMat.shader = _targetShader;
 
 				if (isCreate) {
 					AssetDatabase.CreateAsset(newMat, matPath);
