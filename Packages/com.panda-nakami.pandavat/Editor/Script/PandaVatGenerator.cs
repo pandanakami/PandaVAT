@@ -953,20 +953,26 @@ namespace PandaScript.PandaVat
 			//シーン上にVAT化したオブジェクトを生成
 			{
 				var objName = _rootObj.name + "_vat";
+				GameObject? oldObj = null;
+				MeshRenderer? oldRenderer = null;
+				MeshFilter? oldMeshFilter = null;
 				//あれば上書きする(古いの削除する)
 				if (_isOverwriteGameobject) {
 					var t = _outputTransform ? _outputTransform.Find(objName) : GameObject.Find(objName)?.transform;
 					if (t) {
-						DestroyImmediate(t.gameObject);
+						oldObj = t.gameObject;
+						oldRenderer = t.GetComponent<MeshRenderer>();
+						oldMeshFilter = t.GetComponent<MeshFilter>();
 					}
 				}
 				//上書きしない
 				else { 
 					objName = GetUniqueObjectName(_outputTransform, objName);
 				}
-				var newObj = new GameObject(objName);
-				var meshFilter = newObj.AddComponent<MeshFilter>();
-				var meshRenderer = newObj.AddComponent<MeshRenderer>();
+
+				var newObj = oldObj ? oldObj : new GameObject(objName);
+				var meshFilter = oldMeshFilter ? oldMeshFilter : newObj.AddComponent<MeshFilter>();
+				var meshRenderer = oldRenderer ? oldRenderer : newObj.AddComponent<MeshRenderer>();
 				meshFilter.mesh = newMesh;
 				meshRenderer.sharedMaterial = newMat;
 				newObj.transform.parent = _outputTransform;
