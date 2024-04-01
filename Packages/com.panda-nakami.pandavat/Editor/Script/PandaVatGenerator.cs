@@ -231,55 +231,95 @@ namespace PandaScript.PandaVat
 
 			//生成
 			if (GUILayout.Button("Generate", GUILayout.Height(40))) {
-				_savePos = CreateFoldersRecursivelyIfNotExist(_savePos);
-
-				//セット後の変更エラーチェック
-				_CheckRendererEnable();
-				_CheckAnimClipEnable();
-				_CheckMode();
-				if (_hasRendererError || _hasAnimationError || _hasModeError) {
-					throw new Exception(_ErrorCheckResult);
-				}
-
-				_baseMesh = null;
-				_rootObj = _rootAnim.gameObject;
-
-				var isSkinnedMeshRenderer = true;
-
-				if (_targetRenderer is SkinnedMeshRenderer) {
-					_baseMesh = ((SkinnedMeshRenderer)_targetRenderer).sharedMesh;
-				}
-				else if (_targetRenderer is MeshRenderer) {
-					isSkinnedMeshRenderer = false;
-					_baseMesh = _targetRenderer.GetComponent<MeshFilter>()?.sharedMesh;
-				}
-
-				if (!_baseMesh) {
-					Debug.LogError("Error. Mesh is not set.");
-					return;
-				}
-				if (_baseMesh.vertexCount > 8192) {
-					Debug.LogError("Not supported. Mesh with up to 8192 vertices is supported.");
-					return;
-				}
-
-				_CreateVat(isSkinnedMeshRenderer);
-				Debug.Log($"Generate VAT Finish!!!");
+				_Generate();
 			}
 
 			GUI.enabled = true;
+		}
 
+		/// <summary>
+		/// 外部からの生成
+		/// </summary>
+		/// <param name="savePos"></param>
+		/// <param name="fps"></param>
+		/// <param name="rootAnim"></param>
+		/// <param name="targetRenderer"></param>
+		/// <param name="clip"></param>
+		/// <param name="shader"></param>
+		public void GenerateVatManual(string savePos, int fps, Animator rootAnim, Renderer targetRenderer, AnimationClip clip, Shader shader)
+		{
+			_savePos = savePos;
+			_animFps = fps;
+			_rootAnim = rootAnim;
+			_DispAnimatorAndRendererSelector(true);
+			if (_renderers.Contains(targetRenderer)) {
+				_targetRenderer = targetRenderer;
+			}
+			else {
+				throw new Exception("RendererはAnimator配下から指定してください");
+			}
+			if (_animationClips.Contains(clip)) {
+				_animClip = clip;
+			}
+			else {
+				throw new Exception("AnimationClipはAnimatorが持つものから指定してください");
+			}
+			
+			_targetShader = shader;
 
+			_Generate();
+		}
+
+		/// <summary>
+		/// 生成
+		/// </summary>
+		/// <exception cref="Exception"></exception>
+		private void _Generate()
+		{
+			_savePos = CreateFoldersRecursivelyIfNotExist(_savePos);
+
+			//セット後の変更エラーチェック
+			_CheckRendererEnable();
+			_CheckAnimClipEnable();
+			_CheckMode();
+			if (_hasRendererError || _hasAnimationError || _hasModeError) {
+				throw new Exception(_ErrorCheckResult);
+			}
+
+			_baseMesh = null;
+			_rootObj = _rootAnim.gameObject;
+
+			var isSkinnedMeshRenderer = true;
+
+			if (_targetRenderer is SkinnedMeshRenderer) {
+				_baseMesh = ((SkinnedMeshRenderer)_targetRenderer).sharedMesh;
+			}
+			else if (_targetRenderer is MeshRenderer) {
+				isSkinnedMeshRenderer = false;
+				_baseMesh = _targetRenderer.GetComponent<MeshFilter>()?.sharedMesh;
+			}
+
+			if (!_baseMesh) {
+				Debug.LogError("Error. Mesh is not set.");
+				return;
+			}
+			if (_baseMesh.vertexCount > 8192) {
+				Debug.LogError("Not supported. Mesh with up to 8192 vertices is supported.");
+				return;
+			}
+
+			_CreateVat(isSkinnedMeshRenderer);
+			Debug.Log($"Generate VAT Finish!!!");
 		}
 
 		/// <summary>
 		/// アニメーターの指定とレンダラーとアニメーションクリップ選択
 		/// </summary>
-		private void _DispAnimatorAndRendererSelector()
+		private void _DispAnimatorAndRendererSelector(bool isManual = false)
 		{
 			EditorGUI.BeginChangeCheck();
 			_rootAnim = (Animator)EditorGUILayout.ObjectField("対象のAnimator", _rootAnim, typeof(Animator), true);
-			if (EditorGUI.EndChangeCheck()) {
+			if (EditorGUI.EndChangeCheck() || isManual) {
 				if (_rootAnim) {
 					_renderers = _rootAnim.GetComponentsInChildren<Renderer>();
 					if (_renderers.Length == 0 || !_renderers.Any(o=>o is SkinnedMeshRenderer || o is MeshRenderer)) {
