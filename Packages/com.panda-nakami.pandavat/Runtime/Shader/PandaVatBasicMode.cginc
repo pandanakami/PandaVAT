@@ -48,7 +48,7 @@ inline void ApplyVatInfo(uint vertexId, inout float4 vertex
 	//前VATフレームと次VATフレームで、今の時間がどれだけ次VATフレームに寄っているか割合
 	float afterRate;
 
-	_GetRate(vertexId, vertUvX, frameRateBefore, frameRateAfter, afterRate);
+	GET_VAT_RATE_FUNCTION(vertexId, vertUvX, frameRateBefore, frameRateAfter, afterRate);
 
 	//前・次VATフレームの差分情報を取得
 	VatDiffInfo before = _GetFrameAttribute(vertUvX, frameRateBefore);

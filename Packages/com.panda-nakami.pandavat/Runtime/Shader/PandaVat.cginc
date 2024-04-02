@@ -46,6 +46,9 @@ static float _Dy = (0.5 / _TexelHeight);	//VAT取得用の補正値Y
 /******************************** prototype ***************************/
 inline void _GetRate(uint vertexId, out float vertUvX, out float frameRateBefore, out float frameRateAfter, out float afterRate);
 
+#ifndef GET_VAT_RATE_FUNCTION
+	#define GET_VAT_RATE_FUNCTION _GetRate
+#endif
 /********************************  ***************************/
 
 #if VAT_ROTATION_INTERPOLATION
@@ -84,7 +87,6 @@ inline void _GetRate(uint vertexId, out float vertUvX, out float frameRateBefore
 			float posSec_ = fmod(diffTimeSec, totalDuration);
 		#else
 			float posSec_ = min(diffTimeSec, totalDuration);
-			
 		#endif
 		//_VatDuration内の秒数に収める
 		float posSec = min(_VatDuration, max(0, posSec_ - startOffset));

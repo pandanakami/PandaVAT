@@ -52,7 +52,7 @@ inline void ApplyVatInfo(uint vertexId, out float4 vertex
 	//前VATフレームと次VATフレームで、今の時間がどれだけ次VATフレームに寄っているか割合
 	float afterRate;
 
-	_GetRate(vertexId, vertUvX, frameRateBefore, frameRateAfter, afterRate);
+	GET_VAT_RATE_FUNCTION(vertexId, vertUvX, frameRateBefore, frameRateAfter, afterRate);
 
 	//前・次VATフレームのボーン情報を取得
 	VatBoneInfo before = _GetFrameAttribute(vertUvX, frameRateBefore);
@@ -66,18 +66,19 @@ inline void ApplyVatInfo(uint vertexId, out float4 vertex
 	//差分座標取得
 	float4 uv = float4(vertUvX + _Dx, (_TexelHeight - 3 / _TexelHeight) + _Dy, 0, 0);
 	float3 diffPos = tex2Dlod(_VatTex, uv).xyz; //ボーンと頂点の差
-	uv.y += _VatTex_TexelSize.y;
-	float3 baseNormal = tex2Dlod(_VatTex, uv).xyz;
-	uv.y += _VatTex_TexelSize.y;
-	float4 baseTangent = tex2Dlod(_VatTex, uv);
 
 	//行列計算してローカル座標取得
 	vertex = mul(mat, float4(diffPos, 1));
 
+	uv.y += _VatTex_TexelSize.y;
 	#ifdef VAT_USE_NORMAL
+		float3 baseNormal = tex2Dlod(_VatTex, uv).xyz;
 		normal = mul((float3x3)mat, baseNormal);
 	#endif
+
+	uv.y += _VatTex_TexelSize.y;
 	#ifdef VAT_USE_TANGENT
+		float4 baseTangent = tex2Dlod(_VatTex, uv);
 		tangent = float4(mul((float3x3)mat, baseTangent.xyz), baseTangent.w);
 	#endif
 }
