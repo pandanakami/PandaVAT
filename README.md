@@ -55,11 +55,11 @@ Rendererは`MeshRendere`と`SkinnedMeshRenderer`が対象です。<br>
 スクリプトで`MaterialPropertyBlock`作って、開始時間をセットして`MeshRenderer`に指定する流れ<br>
 <br>
 こんな感じに使う。<br>
-```csharp
+
+``` csharp
 materialPropertyBlock.SetFloat("_VatStartTimeSec", Time.timeSinceLevelLoad);
 meshRenderer.SetPropertyBlock(materialPropertyBlock);
 ```
-<br>
 ### ・VAT制御方法が[割合]の場合<br>
 アニメーションで割合を操作する使い方になると思います。<br>
 <br>
