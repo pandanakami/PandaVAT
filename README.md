@@ -13,7 +13,6 @@ PandaVATはアニメーションをVAT(VertexAnimationTexture)化するための
 
 ## その他の場合
 [Releases](https://github.com/pandanakami/PandaVAT/releases)から最新取ってきていい感じにPackagesの下に入れてください。<br>
-一部`VRChat SDK - Worlds`使っているのでこちらも入れておいてください。
 
 # 使い方
 
@@ -55,17 +54,11 @@ Rendererは`MeshRendere`と`SkinnedMeshRenderer`が対象です。<br>
 ### ・VAT制御方法が[時間]の場合<br>
 スクリプトで`MaterialPropertyBlock`作って、開始時間をセットして`MeshRenderer`に指定する流れ<br>
 <br>
-注意点として、VRChatではシェーダーの`_Time.y`はワールド入ってからの秒数で、スクリプトの`Time.time`はVRChatを起動してからの秒数となります。`Time.timeと_Time.yの差`が必要です。<br>
-以下にシェーダー時間の差を取得するUdon使ったprefab置いているのでいい感じに使ってください。<br>
-`Packages/com.panda-nakami.pandavat/Runtime/Sample/Prefab/GetShaderTimeDiff.prefab`<br>
-<br>
-差を取れたらこんな感じに使う。<br>
+こんな感じに使う。<br>
 ```csharp
-materialPropertyBlock.SetFloat("_VatStartTimeSec", Time.time - シェーダー時間の差);
+materialPropertyBlock.SetFloat("_VatStartTimeSec", Time.timeSinceLevelLoad);
 meshRenderer.SetPropertyBlock(materialPropertyBlock);
 ```
-またはWorld入ってからの時間とれるUdonスクリプトあればそっち使ってください。私の調査不足です。<br>
-というか教えてください。<br>
 <br>
 ### ・VAT制御方法が[割合]の場合<br>
 アニメーションで割合を操作する使い方になると思います。<br>
