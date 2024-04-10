@@ -581,7 +581,7 @@ namespace PandaScript.PandaVat
 			var frameCount = Mathf.Max((int)(duration * _animFps + 1), 1);//アニメーションフレーム数
 
 			//テクスチャ用意
-			var frameCount_ = _RotationInterpolationMode ? frameCount * 3 + 3 : frameCount * 3;
+			var frameCount_ = frameCount * 3;
 			var texture = new Texture2D(vertexCount, frameCount_, TextureFormat.RGBAHalf, false, false);
 			texture.wrapMode = TextureWrapMode.Clamp;
 			texture.filterMode = FilterMode.Point;
@@ -599,29 +599,29 @@ namespace PandaScript.PandaVat
 			var defaultNormals = _baseMesh.normals;
 			var defaultTangents = _baseMesh.tangents;
 
-			//Renderのカスタム座標系を作る
-			var customRenderT = CreateCustomTransform(renderT, rootT.parent);
-			for (var i = 0; i < vertexCount; i++) {
-				defaultVertices[i] = customRenderT.TransformPoint(defaultVertices[i]);
-				defaultNormals[i] = customRenderT.TransformVector(defaultNormals[i]);
-				var tanXyz = customRenderT.TransformVector(defaultTangents[i]);
-				defaultTangents[i].x = tanXyz.x;
-				defaultTangents[i].y = tanXyz.y;
-				defaultTangents[i].z = tanXyz.z;
-			}
-			DestroyImmediate(customRenderT.gameObject);
-
 			//回転補正モード
 			if (_RotationInterpolationMode) {
-				_GenerateVATRotationInterpolationMode(rootT, renderT, texture, vertexCount, frameCount, duration, isSkinedMeshRenderer);
+				_GenerateVATRotationInterpolationMode(rootT, renderT, texture, vertexCount, frameCount, duration, isSkinedMeshRenderer,
+					ref defaultVertices, ref defaultNormals, ref defaultTangents);
 			}
 			//通常モード
 			else {
+
+				//Renderのカスタム座標系を作る
+				var customRenderT = CreateCustomTransform(renderT, rootT.parent);
+				for (var i = 0; i < vertexCount; i++) {
+					defaultVertices[i] = customRenderT.TransformPoint(defaultVertices[i]);
+					defaultNormals[i] = customRenderT.TransformVector(defaultNormals[i]);
+					var tanXyz = customRenderT.TransformVector(defaultTangents[i]);
+					defaultTangents[i].x = tanXyz.x;
+					defaultTangents[i].y = tanXyz.y;
+					defaultTangents[i].z = tanXyz.z;
+				}
+				DestroyImmediate(customRenderT.gameObject);
+
 				_GenerateVABasic(rootT, renderT, texture, vertexCount, frameCount, duration, 
 					isSkinedMeshRenderer, defaultVertices, defaultNormals, defaultTangents);
 			}
-
-
 
 			texture.Apply();
 
@@ -700,7 +700,9 @@ namespace PandaScript.PandaVat
 		/// <param name="frameCount">フレーム数</param>
 		/// <param name="duration">アニメーションの長さ(秒)</param>
 		/// <param name="isSkinnedMeshRendere">SkinnedMeshrendererか否か</param>
-		private void _GenerateVATRotationInterpolationMode(Transform rootT, Transform renderT, Texture2D texture, int vertexCount, int frameCount, float duration, bool isSkinnedMeshRendere)
+		private void _GenerateVATRotationInterpolationMode(Transform rootT, Transform renderT, Texture2D texture, int vertexCount, 
+			int frameCount, float duration, bool isSkinnedMeshRendere,
+			ref Vector3[] updateDefaultVerteces, ref Vector3[] updateDefaultNormals, ref Vector4[] updateDefaultTangents)
 		{
 			var targetSkinnedMeshRenderer = _targetRenderer as SkinnedMeshRenderer;
 
@@ -744,19 +746,15 @@ namespace PandaScript.PandaVat
 					//bone0が100%前提。
 					var boneIndex = isSkinnedMeshRendere ?  boneWeights[vertIndex].boneIndex0 : 0;
 
-					defaultDiffPos[vertIndex] = customBones[boneIndex].InverseTransformPoint(defaultDiffPos[vertIndex]);
-
-					texture.SetPixel(vertIndex, frameCount * 3, GetColor(defaultDiffPos[vertIndex]));
+					updateDefaultVerteces[vertIndex] = customBones[boneIndex].InverseTransformPoint(defaultDiffPos[vertIndex]);
 
 					//normal
-					defaultDiffNormals[vertIndex] = customBones[boneIndex].InverseTransformDirection(defaultDiffNormals[vertIndex]);
-					texture.SetPixel(vertIndex, frameCount * 3 + 1, GetColor(defaultDiffNormals[vertIndex]));
-
+					updateDefaultNormals[vertIndex] = customBones[boneIndex].InverseTransformDirection(defaultDiffNormals[vertIndex]);
+			
 					//tangent
 					float w = defaultDiffTangents[vertIndex].w;
-					defaultDiffTangents[vertIndex] = customBones[boneIndex].InverseTransformDirection(defaultDiffTangents[vertIndex]);
-					defaultDiffTangents[vertIndex].w = w;
-					texture.SetPixel(vertIndex, frameCount * 3 + 2, GetColor(defaultDiffTangents[vertIndex]));
+					updateDefaultTangents[vertIndex] = customBones[boneIndex].InverseTransformDirection(defaultDiffTangents[vertIndex]);
+					updateDefaultTangents[vertIndex].w = w;
 				}
 			}
 
@@ -949,9 +947,9 @@ namespace PandaScript.PandaVat
 			//シーン上にVAT化したオブジェクトを生成
 			{
 				var objName = _rootObj.name + "_vat";
-				GameObject? oldObj = null;
-				MeshRenderer? oldRenderer = null;
-				MeshFilter? oldMeshFilter = null;
+				GameObject oldObj = null;
+				MeshRenderer oldRenderer = null;
+				MeshFilter oldMeshFilter = null;
 				//あれば上書きする(古いの削除する)
 				if (_isOverwriteGameobject) {
 					var t = _outputTransform ? _outputTransform.Find(objName) : GameObject.Find(objName)?.transform;

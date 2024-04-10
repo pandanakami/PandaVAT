@@ -13,7 +13,7 @@ struct VatBoneInfo
 /******************************** macro define ***************************/
 
 /******************************** static variable ***************************/
-static float _VatFrameCount = ((_VatTex_TexelSize.w - 3) / 3) - 1; //テクスチャが持つ情報：フレーム数
+static float _VatFrameCount = (_VatTex_TexelSize.w / 3) - 1; //テクスチャが持つ情報：フレーム数
 static float _VatDeltaFrameRate = (1.0 / _VatFrameCount);//フレーム数の逆数
 static float _VatDuration = (_VatFrameCount / _VatFps);//アニメーションの総時間[秒]
 
@@ -35,12 +35,12 @@ inline float4 slerp(float4 q1, float4 q2, float t);
 
 /******************************** public function ***************************/
 // VATの情報を取得
-inline void ApplyVatInfo(uint vertexId, out float4 vertex
+inline void ApplyVatInfo(uint vertexId, inout float4 vertex
 #ifdef VAT_USE_NORMAL
-	, out float3 normal
+	, inout float3 normal
 #endif
 #ifdef VAT_USE_TANGENT
-	, out float4 tangent
+	, inout float4 tangent
 #endif
 )
 {
@@ -63,23 +63,15 @@ inline void ApplyVatInfo(uint vertexId, out float4 vertex
 
 	float4x4 mat = _GenerateLocalMatrix(mixInfo);
 
-	//差分座標取得
-	float4 uv = float4(vertUvX + _Dx, (_TexelHeight - 3 / _TexelHeight) + _Dy, 0, 0);
-	float3 diffPos = tex2Dlod(_VatTex, uv).xyz; //ボーンと頂点の差
-
 	//行列計算してローカル座標取得
-	vertex = mul(mat, float4(diffPos, 1));
+	vertex = mul(mat, vertex);
 
-	uv.y += _VatTex_TexelSize.y;
 	#ifdef VAT_USE_NORMAL
-		float3 baseNormal = tex2Dlod(_VatTex, uv).xyz;
-		normal = mul((float3x3)mat, baseNormal);
+		normal = mul((float3x3)mat, normal);
 	#endif
 
-	uv.y += _VatTex_TexelSize.y;
 	#ifdef VAT_USE_TANGENT
-		float4 baseTangent = tex2Dlod(_VatTex, uv);
-		tangent = float4(mul((float3x3)mat, baseTangent.xyz), baseTangent.w);
+		tangent = float4(mul((float3x3)mat, tangent.xyz), baseTangent.w);
 	#endif
 }
 
@@ -97,7 +89,7 @@ inline VatBoneInfo _GetFrameAttribute(float vertRate, float frameRate)
 	float uvY = (frameRate * _VatFrameCount / _TexelHeight) + _Dy;
 	float4 uv = float4(uvX, uvY, 0, 0);
 	
-	float dy = (_VatFrameCount + 1) / _TexelHeight;
+	const float dy = 0.33333333333;
 
 	//位置
 	o.pos = tex2Dlod(_VatTex, uv).xyz;
