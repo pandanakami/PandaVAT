@@ -592,6 +592,7 @@ namespace PandaScript.PandaVat
 
 			//既にアニメーションモード中の場合解除する
 			AnimationMode.StopAnimationMode();
+			CreateTmpTransform();
 
 			//デフォルト情報保持
 			var defaultVertices = _baseMesh.vertices;
@@ -599,7 +600,7 @@ namespace PandaScript.PandaVat
 			var defaultTangents = _baseMesh.tangents;
 
 			//Renderのカスタム座標系を作る
-			var customRenderT = CreateCustomTransform(renderT, rootT.parent, null, null);
+			var customRenderT = CreateCustomTransform(renderT, rootT.parent);
 			for (var i = 0; i < vertexCount; i++) {
 				defaultVertices[i] = customRenderT.TransformPoint(defaultVertices[i]);
 				defaultNormals[i] = customRenderT.TransformVector(defaultNormals[i]);
@@ -626,8 +627,9 @@ namespace PandaScript.PandaVat
 
 			//各種保存
 			_SaveAsset(texture, rendererName, defaultVertices, defaultNormals, defaultTangents);
-			
-		
+
+
+			DestroyTmpTransform();
 		}
 
 		/// <summary>
@@ -668,8 +670,7 @@ namespace PandaScript.PandaVat
 				Vector3[] normals = tmpMesh.normals;
 				Vector4[] tangents = tmpMesh.tangents;
 
-				var tmpT = new GameObject().transform;
-				var customRendererT = CreateCustomTransform(renderT, rootT.parent, null, tmpT);
+				var customRendererT = CreateCustomTransform(renderT, rootT.parent);
 				
 				for (int vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
 					
@@ -683,7 +684,6 @@ namespace PandaScript.PandaVat
 					texture.SetPixel(vertIndex, frameIndex + frameCount * 2, GetColor(tangentDiff));
 				}
 
-				DestroyImmediate(tmpT.gameObject);
 				DestroyImmediate(customRendererT.gameObject);
 			}
 
@@ -704,8 +704,6 @@ namespace PandaScript.PandaVat
 		{
 			var targetSkinnedMeshRenderer = _targetRenderer as SkinnedMeshRenderer;
 
-			var tmpT = new GameObject().transform;
-
 			Transform[] customBones;
 			//デフォルトメッシュに対して。
 			//各頂点に対して
@@ -725,11 +723,11 @@ namespace PandaScript.PandaVat
 
 				//デフォルトボーンをカスタム座標系にする
 				for(var i = 0; i < bones.Length; i++) {
-					customBones[i] = CreateCustomTransform(bones[i], rootT.parent, null, tmpT);					
+					customBones[i] = CreateCustomTransform(bones[i], rootT.parent);					
 				}
 
 				//レンダラーをカスタム座標系にする
-				var customRendererT = CreateCustomTransform(renderT, rootT.parent, null, tmpT);
+				var customRendererT = CreateCustomTransform(renderT, rootT.parent);
 				
 				//カスタム座標系でのメッシュの頂点座標を取得
 				for (var vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
@@ -781,7 +779,7 @@ namespace PandaScript.PandaVat
 
 				//現フレームのボーンをカスタム座標系にする
 				for (var i = 0; i < bones.Length; i++) {
-					customBones[i] = CreateCustomTransform(bones[i], rootT.parent, customBones[i], tmpT);
+					customBones[i] = CreateCustomTransform(bones[i], rootT.parent, customBones[i]);
 				}
 
 				for (int vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
@@ -803,8 +801,6 @@ namespace PandaScript.PandaVat
 			for (var i = 0; i < customBones.Length; i++) {
 				DestroyImmediate(customBones[i].gameObject);
 			}
-
-			DestroyImmediate(tmpT.gameObject);
 
 			AnimationMode.StopAnimationMode();
 		}
@@ -1050,6 +1046,17 @@ namespace PandaScript.PandaVat
 			return path;
 		}
 
+		#region tmp transform
+		private Transform _tmpT;
+		private void CreateTmpTransform()
+		{
+			_tmpT = new GameObject("tmp").transform;
+		}
+		public void DestroyTmpTransform()
+		{
+			DestroyImmediate(_tmpT);
+		}
+		#endregion
 
 		/// <summary>
 		/// parentを原点とした場合の相対座標となるカスタムトランスフォームを作る
@@ -1066,35 +1073,27 @@ namespace PandaScript.PandaVat
 		/// </summary>
 		/// <param name="src"></param>
 		/// <param name="parent"></param>
-		/// <param name="customRendererT"></param>
-		/// <param name="tmpT"></param>
+		/// <param name="reuseTransform"></param>
 		/// <returns></returns>
-		Transform CreateCustomTransform(Transform src, Transform parent, Transform customRendererT, Transform tmpT)
+		Transform CreateCustomTransform(Transform src, Transform parent, Transform reuseTransform = null)
 		{
-			if (!customRendererT) {
-				customRendererT = new GameObject(src.name).transform;
-			}
-			var tmpCreateFlag = false;
-			if (!tmpT) {
-				tmpT = new GameObject().transform;
-				tmpCreateFlag = true;
+			var retT = reuseTransform;
+
+			if (!retT) {
+				retT = new GameObject(src.name).transform;
 			}
 
 			//入力Transform(コピー)をparentの子にすることで、コピーのローカル座標はparentと入力の差になる
-			CopyTransform(src, tmpT);
-			tmpT.parent = parent;
+			CopyTransform(src, _tmpT);
+			_tmpT.parent = parent;
 
 			//出力をシーン直下にし、コピーのローカル座標を指定することで、出力は意図した座標系になる
-			customRendererT.parent = null;
-			customRendererT.localPosition = tmpT.localPosition;
-			customRendererT.localScale = tmpT.localScale;
-			customRendererT.localRotation = tmpT.localRotation;
+			retT.parent = null;
+			retT.localPosition = _tmpT.localPosition;
+			retT.localScale = _tmpT.localScale;
+			retT.localRotation = _tmpT.localRotation;
 
-			if (tmpCreateFlag) {
-				DestroyImmediate(tmpT.gameObject);
-			}
-
-			return customRendererT;
+			return retT;
 		}
 
 		/// <summary>
