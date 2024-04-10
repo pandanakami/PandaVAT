@@ -66,7 +66,7 @@ meshRenderer.SetPropertyBlock(materialPropertyBlock);
 # 回転補間モードについて<br>
 通常のVATはテクスチャに頂点位置を書き込んでいる仕組み上、急速な回転に弱いです。<br>
 例えば30FPSで1フレームで90°回転するような立方体で、描画するタイミングが1.5/30秒の場合、1フレーム目と2フレーム目のちょうど中間になり、線形補完のせいで立方体がとても小さくなってしまいます。<br>
-![image](https://github.com/pandanakami/PandaVAT/tree/images/images/rotation_interporation.png?raw=true)
+![image](https://raw.githubusercontent.com/pandanakami/PandaVAT/images/images/rotation_interporation.png)
 <br>
 回転補間モードは、これを防ぐために、テクスチャに各頂点が影響するボーンのPosition/Rotation/Scaleを持たせ、シェーダー内でRotationの補間にslerpを使用するようにしたモードです。<br>
 ありていに言えばシェーダーでスキニングしているだけですが、Rotationを補間できるように変換行列でなくPosition/Rotation/Scaleを持たせています。<br>
