@@ -35,19 +35,20 @@ UNITY_INSTANCING_BUFFER_END(VatProps)
 #define ALMOST_EQUAL(a, b) (length(a - b) < 1e-4)
 
 /******************************** static variable ***************************/
-static float _VatVertexCount = _VatTex_TexelSize.z; //テクスチャが持つ情報：頂点数
+static float _TexelWidth = _VatTex_TexelSize.z; //テクスチャが持つ情報：頂点数
 static float _TexelHeight = _VatTex_TexelSize.w;
 
 static float _VatDeltaSec = (1.0 / _VatFps);//1フレームの時間[秒]
 
-static float _Dx = 0.5 / _VatVertexCount; //VAT取得用の補正値X
+static float _Dx = 0.5 / _TexelWidth; //VAT取得用の補正値X
 static float _Dy = (0.5 / _TexelHeight);	//VAT取得用の補正値Y
 
 /******************************** prototype ***************************/
-inline void _GetRate(uint vertexId, out float vertUvX, out float frameRateBefore, out float frameRateAfter, out float afterRate);
+inline void _GetXRate(uint texHorizonInfo, out float uvX);
+inline void _GetYRate(out float frameRateBefore, out float frameRateAfter, out float afterRate);
 
-#ifndef GET_VAT_RATE_FUNCTION
-	#define GET_VAT_RATE_FUNCTION _GetRate
+#ifndef GET_VAT_Y_RATE_FUNCTION
+	#define GET_VAT_Y_RATE_FUNCTION _GetYRate
 #endif
 /********************************  ***************************/
 
@@ -59,13 +60,17 @@ inline void _GetRate(uint vertexId, out float vertUvX, out float frameRateBefore
 
 
 //VAT座標用情報取得
-// => 頂点に対応するUV.x情報
-// => テクスチャ中のどのフレームをとるかの情報(前フレーム、次フレーム、今の時間での前次フレームの位置割合)
-inline void _GetRate(uint vertexId, out float vertUvX, out float frameRateBefore, out float frameRateAfter, out float afterRate)
+// => 頂点/boneに対応するUV.x情報
+inline void _GetXRate(uint texHorizonInfo, out float uvX)
 {
-	///頂点位置をとる(x)
-	vertUvX = float(vertexId) / _VatVertexCount;
-	
+	///頂点/bone位置をとる(x)
+	uvX = float(texHorizonInfo) / _TexelWidth;
+}
+
+//VAT座標用情報取得
+// => テクスチャ中のどのフレームをとるかの情報(前フレーム、次フレーム、今の時間での前次フレームの位置割合)
+inline void _GetYRate(out float frameRateBefore, out float frameRateAfter, out float afterRate)
+{
 	///フレーム位置をとる(y)。
 	#if VAT_CTRL_WITH_RATE
 		//プロパティの割合を指定

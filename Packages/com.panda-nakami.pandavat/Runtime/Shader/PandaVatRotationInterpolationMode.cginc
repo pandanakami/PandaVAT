@@ -35,7 +35,8 @@ inline float4 slerp(float4 q1, float4 q2, float t);
 
 /******************************** public function ***************************/
 // VATの情報を取得
-inline void ApplyVatInfo(uint vertexId, inout float4 vertex
+inline void ApplyVatInfoRI(uint4 boneIndeces, float4 boneWeights,
+inout float4 vertex
 #ifdef VAT_USE_NORMAL
 	, inout float3 normal
 #endif
@@ -44,7 +45,7 @@ inline void ApplyVatInfo(uint vertexId, inout float4 vertex
 #endif
 )
 {
-	float vertUvX;
+	float uvX;
 	//前VATフレーム位置
 	float frameRateBefore;
 	//次VATフレーム位置
@@ -52,11 +53,14 @@ inline void ApplyVatInfo(uint vertexId, inout float4 vertex
 	//前VATフレームと次VATフレームで、今の時間がどれだけ次VATフレームに寄っているか割合
 	float afterRate;
 
-	GET_VAT_RATE_FUNCTION(vertexId, vertUvX, frameRateBefore, frameRateAfter, afterRate);
+	//uvx取得:今はBone0のみ
+	_GetXRate(boneIndeces[0], uvX);
+	//フレーム位置情報取得
+	GET_VAT_Y_RATE_FUNCTION(frameRateBefore, frameRateAfter, afterRate);
 
 	//前・次VATフレームのボーン情報を取得
-	VatBoneInfo before = _GetFrameAttribute(vertUvX, frameRateBefore);
-	VatBoneInfo after = _GetFrameAttribute(vertUvX, frameRateAfter);
+	VatBoneInfo before = _GetFrameAttribute(uvX, frameRateBefore);
+	VatBoneInfo after = _GetFrameAttribute(uvX, frameRateAfter);
 
 	//前・次VATフレーム情報を補間する
 	VatBoneInfo mixInfo = _MixVatAttribute(before, after, afterRate);
@@ -189,4 +193,6 @@ inline float4 slerp(float4 q1, float4 q2, float t)
 	return isLittleAngle ? lerp(q1, q2, t) : (s0 * q1) + (s1 * q2);
 }
 
+//shader_featureでOFFの場合のコンパイル通る用
+#define ApplyVatInfo
 #endif

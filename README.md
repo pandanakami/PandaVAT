@@ -67,6 +67,8 @@ meshRenderer.SetPropertyBlock(materialPropertyBlock);
 通常のVATはテクスチャに頂点位置を書き込んでいる仕組み上、急速な回転に弱いです。<br>
 例えば30FPSで1フレームで90°回転するような立方体で、描画するタイミングが1.5/30秒の場合、1フレーム目と2フレーム目のちょうど中間になり、線形補完のせいで立方体がとても小さくなってしまいます。<br>
 回転補間モードは、これを防ぐために、テクスチャに各頂点が影響するボーンのPosition/Rotation/Scaleを持たせ、シェーダー内でRotationの補間にslerpを使用するようにしたモードです。<br>
+ありていに言えばシェーダーでスキニングしているだけですが、Rotationを補間できるように変換行列でなくPosition/Rotation/Scaleを持たせています。<br>
+<br>
 シェーダーを回転補間モードにするには以下サンプルを参考にしてください<br>
 `Packages/com.panda-nakami.pandavat/Runtime/Sample/SampleVATShader/VatSampleRotationInterpolatioinModeShad.shader`<br>
 `Properties`の中が変わるくらいです。<br>
@@ -75,16 +77,24 @@ meshRenderer.SetPropertyBlock(materialPropertyBlock);
 以下、回転補間モードのメリット・デメリット・制約です。<br>
 <br>
 ## ・メリット<br>
-回転アニメーションの場合テクスチャのFPS数を減らしても通常モードに比べてそれなりに元アニメーションに近い動きをしそう(願望)<br>
+### (1)テクスチャサイズはほとんどの場合で圧倒的に小さくなる
+テクスチャの幅が頂点数でなくボーン数になるため。
+
+### (2)回転アニメーションの場合テクスチャのFPS数を減らしても通常モードに比べてそれなりに元アニメーションに近い動きをしそう(願望)<br>
 <br>
+
 ## ・デメリット<br>
-通常モードに比べてシェーダー内の処理負荷が高い<br>
-<br>
+### (1)通常モードに比べてシェーダー内の処理負荷が高い
+Quaternionのslerpしたり、変換行列作ったりしてるので。<br>
+
 ## ・制約<br>
 ### (1) 1つのボーンに100%追従している頂点しかVAT化できない<br>
-できるけど、テクスチャが無限にでかくなるのでしない。<br>
+そのうちボーン4つまで追従できるようにする予定です。<br>
 <br>
-### (2) Transformが`せん断`しているボーンはできない<br>
+
+### (2) BlendShapeは非対応
+
+### (3) Transformが`せん断`しているボーンはできない<br>
 せん断例：親TransformがScale(2,1,1)で自TransformがRotation(0,45,0)のようなやつ。<br>
 位置、回転、スケーリングから変換行列を再現できないやつ。<br>
 式で言うと以下のようなボーン。

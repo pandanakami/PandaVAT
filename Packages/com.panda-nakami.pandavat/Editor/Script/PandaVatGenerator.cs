@@ -97,7 +97,7 @@ namespace PandaScript.PandaVat
 		/// <summary>
 		/// モード設定(通常：false, 回転補間モード : true)
 		/// </summary>
-		private bool _RotationInterpolationMode = false;
+		private bool _isRotationInterpolationMode = false;
 		/// <summary>
 		/// 画面スクロールの情報
 		/// </summary>
@@ -223,7 +223,7 @@ namespace PandaScript.PandaVat
 			}
 
 			if (generateEnable) {
-				if (_RotationInterpolationMode) {
+				if (_isRotationInterpolationMode) {
 					style.normal.textColor = Color.green;
 					if (_targetRenderer is SkinnedMeshRenderer) {
 						txt = "[回転補間モード(SkinnedMeshRenderer)";
@@ -558,7 +558,7 @@ namespace PandaScript.PandaVat
 
 				var shaderIsRotationInterpolationMode = _targetShader.FindPropertyIndex("_RotationInterpolationMode") != -1;
 
-				_RotationInterpolationMode = shaderIsRotationInterpolationMode;
+				_isRotationInterpolationMode = shaderIsRotationInterpolationMode;
 			}
 
 			_hasModeError = false;
@@ -577,12 +577,15 @@ namespace PandaScript.PandaVat
 			var rendererName = _targetRenderer.name;
 
 			var vertexCount = _baseMesh.vertexCount;    //頂点数
+			var boneCount = _isRotationInterpolationMode ? (isSkinedMeshRenderer ? (_targetRenderer as SkinnedMeshRenderer).bones.Length : 1) : 0;
+			var texWidth = _isRotationInterpolationMode ? boneCount : vertexCount;
+
 			var duration = _animClip.length;  //アニメーション時間　秒
 			var frameCount = Mathf.Max((int)(duration * _animFps + 1), 1);//アニメーションフレーム数
 
 			//テクスチャ用意
 			var frameCount_ = frameCount * 3;
-			var texture = new Texture2D(vertexCount, frameCount_, TextureFormat.RGBAHalf, false, false);
+			var texture = new Texture2D(texWidth, frameCount_, TextureFormat.RGBAHalf, false, false);
 			texture.wrapMode = TextureWrapMode.Clamp;
 			texture.filterMode = FilterMode.Point;
 
@@ -598,11 +601,11 @@ namespace PandaScript.PandaVat
 			var defaultVertices = _baseMesh.vertices;
 			var defaultNormals = _baseMesh.normals;
 			var defaultTangents = _baseMesh.tangents;
-
+			BoneWeight[] boneWeights = null;
 			//回転補正モード
-			if (_RotationInterpolationMode) {
-				_GenerateVATRotationInterpolationMode(rootT, renderT, texture, vertexCount, frameCount, duration, isSkinedMeshRenderer,
-					ref defaultVertices, ref defaultNormals, ref defaultTangents);
+			if (_isRotationInterpolationMode) {
+				_GenerateVATRotationInterpolationMode(rootT, renderT, texture, boneCount, frameCount, duration, isSkinedMeshRenderer,
+					ref defaultVertices, ref defaultNormals, ref defaultTangents, out boneWeights);
 			}
 			//通常モード
 			else {
@@ -626,7 +629,7 @@ namespace PandaScript.PandaVat
 			texture.Apply();
 
 			//各種保存
-			_SaveAsset(texture, rendererName, defaultVertices, defaultNormals, defaultTangents);
+			_SaveAsset(texture, rendererName, defaultVertices, defaultNormals, defaultTangents, boneWeights);
 
 
 			DestroyTmpTransform();
@@ -696,13 +699,13 @@ namespace PandaScript.PandaVat
 		/// <param name="rootT">AnimatorのルートTransform</param>
 		/// <param name="renderT">RendererのTransform</param>
 		/// <param name="texture">書き込み対象テクスチャ</param>
-		/// <param name="vertexCount">頂点の数</param>
+		/// <param name="boneCount">頂点の数</param>
 		/// <param name="frameCount">フレーム数</param>
 		/// <param name="duration">アニメーションの長さ(秒)</param>
 		/// <param name="isSkinnedMeshRendere">SkinnedMeshrendererか否か</param>
-		private void _GenerateVATRotationInterpolationMode(Transform rootT, Transform renderT, Texture2D texture, int vertexCount, 
+		private void _GenerateVATRotationInterpolationMode(Transform rootT, Transform renderT, Texture2D texture, int boneCount, 
 			int frameCount, float duration, bool isSkinnedMeshRendere,
-			ref Vector3[] updateDefaultVerteces, ref Vector3[] updateDefaultNormals, ref Vector4[] updateDefaultTangents)
+			ref Vector3[] updateDefaultVerteces, ref Vector3[] updateDefaultNormals, ref Vector4[] updateDefaultTangents, out BoneWeight[] outBoneWeights)
 		{
 			var targetSkinnedMeshRenderer = _targetRenderer as SkinnedMeshRenderer;
 
@@ -730,9 +733,10 @@ namespace PandaScript.PandaVat
 
 				//レンダラーをカスタム座標系にする
 				var customRendererT = CreateCustomTransform(renderT, rootT.parent);
-				
+
+				var vertCount = defaultDiffPos.Length;
 				//カスタム座標系でのメッシュの頂点座標を取得
-				for (var vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
+				for (var vertIndex = 0; vertIndex < vertCount; vertIndex++) {
 					defaultDiffPos[vertIndex] = customRendererT.TransformPoint(defaultDiffPos[vertIndex]);
 					defaultDiffNormals[vertIndex] = customRendererT.TransformDirection(defaultDiffNormals[vertIndex]);
 					defaultDiffTangents[vertIndex] = customRendererT.TransformDirection(defaultDiffTangents[vertIndex]);
@@ -741,7 +745,7 @@ namespace PandaScript.PandaVat
 
 				//カスタム座標系で、メッシュの頂点座標からデフォルトボーンのトランスフォームを除いた座標をデフォルト座標として登録
 				//VATでは各フレームでの移動したボーン情報を持ち、このデフォルト座標にそのボーントランスフォームをセットすることでアニメーション後の座標を取得できる
-				for (var vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
+				for (var vertIndex = 0; vertIndex < vertCount; vertIndex++) {
 				
 					//bone0が100%前提。
 					var boneIndex = isSkinnedMeshRendere ?  boneWeights[vertIndex].boneIndex0 : 0;
@@ -755,6 +759,26 @@ namespace PandaScript.PandaVat
 					float w = defaultDiffTangents[vertIndex].w;
 					updateDefaultTangents[vertIndex] = customBones[boneIndex].InverseTransformDirection(defaultDiffTangents[vertIndex]);
 					updateDefaultTangents[vertIndex].w = w;
+				}
+
+				if (isSkinnedMeshRendere) {
+					outBoneWeights = boneWeights;
+				}
+				else {
+					outBoneWeights = new BoneWeight[vertCount];
+					var baseBoneWeight = new BoneWeight() {
+						weight0 = 1,
+						weight1 = 0,
+						weight2 = 0,
+						weight3 = 0,
+						boneIndex0 = 0,
+						boneIndex1 = 0,
+						boneIndex2 = 0,
+						boneIndex3 = 0
+					};
+					for (var i=0;i< vertCount;i++){
+						outBoneWeights[i] = baseBoneWeight;
+					};
 				}
 			}
 
@@ -774,25 +798,19 @@ namespace PandaScript.PandaVat
 				Mesh mesh = isSkinnedMeshRendere ? targetSkinnedMeshRenderer.sharedMesh : _baseMesh;
 				BoneWeight[] boneWeights = mesh.boneWeights;
 
+				Transform customBone = customBones[0];
 
 				//現フレームのボーンをカスタム座標系にする
-				for (var i = 0; i < bones.Length; i++) {
-					customBones[i] = CreateCustomTransform(bones[i], rootT.parent, customBones[i]);
-				}
+				for (var i = 0; i < boneCount; i++) {
+					customBone = CreateCustomTransform(bones[i], rootT.parent, customBone);
 
-				for (int vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
+					var position = customBone.localPosition;
+					var scale = customBone.localScale;
+					var rotation = customBone.localRotation;
 
-					//bone0が100%前提。
-					var boneIndex = isSkinnedMeshRendere ? boneWeights[vertIndex].boneIndex0 : 0;
-					var boneT = customBones[boneIndex];
-
-					var position = boneT.localPosition;
-					var scale = boneT.localScale;
-					var rotation = boneT.localRotation;
-
-					texture.SetPixel(vertIndex, frameIndex, GetColor(position));
-					texture.SetPixel(vertIndex, frameIndex + frameCount, GetColor(rotation));
-					texture.SetPixel(vertIndex, frameIndex + frameCount * 2, GetColor(scale));
+					texture.SetPixel(i, frameIndex, GetColor(position));
+					texture.SetPixel(i, frameIndex + frameCount, GetColor(rotation));
+					texture.SetPixel(i, frameIndex + frameCount * 2, GetColor(scale));
 				}
 			}
 
@@ -811,7 +829,7 @@ namespace PandaScript.PandaVat
 		/// <param name="vertices"></param>
 		/// <param name="normals"></param>
 		/// <param name="tangents"></param>
-		private void _SaveAsset(Texture2D texture, string rendererName, Vector3[] vertices, Vector3[] normals, Vector4[] tangents)
+		private void _SaveAsset(Texture2D texture, string rendererName, Vector3[] vertices, Vector3[] normals, Vector4[] tangents, BoneWeight[] boneWeights)
 		{
 
 			string dirName = _savePos;
@@ -871,6 +889,7 @@ namespace PandaScript.PandaVat
 				newMesh.normals = normals;
 				newMesh.tangents = tangents;
 				newMesh.triangles = _baseMesh.triangles;
+				
 				var uvs = new List<Vector2>();
 				for (var i = 0; i < 8; i++) {
 					_baseMesh.GetUVs(i, uvs);
@@ -879,9 +898,11 @@ namespace PandaScript.PandaVat
 					}
 					uvs.Clear();
 				}
+
 				
-				//ボーン変形情報削除
-				newMesh.boneWeights = null;
+				newMesh.boneWeights = boneWeights;
+
+				//ブレンドシェイプ変形情報削除
 				newMesh.bindposes = new Matrix4x4[0];
 
 				//ブレンドシェイプ削除
@@ -930,7 +951,7 @@ namespace PandaScript.PandaVat
 
 
 				newMat.enableInstancing = true;
-				if (_RotationInterpolationMode) {
+				if (_isRotationInterpolationMode) {
 					newMat.EnableKeyword("VAT_ROTATION_INTERPOLATION");
 				}
 				else {
@@ -1052,7 +1073,7 @@ namespace PandaScript.PandaVat
 		}
 		public void DestroyTmpTransform()
 		{
-			DestroyImmediate(_tmpT);
+			DestroyImmediate(_tmpT.gameObject);
 		}
 		#endregion
 

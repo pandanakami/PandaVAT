@@ -40,7 +40,7 @@ inline void ApplyVatInfo(uint vertexId, inout float4 vertex
 #endif
 )
 {
-	float vertUvX;
+	float uvX;
 	//前VATフレーム位置
 	float frameRateBefore;
 	//次VATフレーム位置
@@ -48,11 +48,14 @@ inline void ApplyVatInfo(uint vertexId, inout float4 vertex
 	//前VATフレームと次VATフレームで、今の時間がどれだけ次VATフレームに寄っているか割合
 	float afterRate;
 
-	GET_VAT_RATE_FUNCTION(vertexId, vertUvX, frameRateBefore, frameRateAfter, afterRate);
+	//uv.x取得
+	_GetXRate(vertexId, uvX);
+	//フレーム位置情報取得
+	GET_VAT_Y_RATE_FUNCTION(frameRateBefore, frameRateAfter, afterRate);
 
 	//前・次VATフレームの差分情報を取得
-	VatDiffInfo before = _GetFrameAttribute(vertUvX, frameRateBefore);
-	VatDiffInfo after = _GetFrameAttribute(vertUvX, frameRateAfter);
+	VatDiffInfo before = _GetFrameAttribute(uvX, frameRateBefore);
+	VatDiffInfo after = _GetFrameAttribute(uvX, frameRateAfter);
 
 	//前・次VATフレーム差分情報を線形補間する
 	VatDiffInfo mixInfo = _MixVatAttribute(before, after, afterRate);
@@ -120,4 +123,6 @@ inline VatDiffInfo _MixVatAttribute(VatDiffInfo before, VatDiffInfo after, float
 	return o;
 }
 
+//shader_featureでOFFの場合のコンパイル通る用
+#define ApplyVatInfoRI
 #endif

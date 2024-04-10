@@ -51,7 +51,8 @@ Shader "PandaShad/Vat/VatRotationInterpolationModeSample"
 			{
 				float4 vertex : POSITION;
 				float2 uv : TEXCOORD0;
-				uint vid : SV_VertexID;
+				float4 weights : BLENDWEIGHTS;
+				uint4 indices : BLENDINDICES;
 				float3 normal : NORMAL;
 				#if IS_DISP_TANGENT
 					float4 tangent : TANGENT;
@@ -75,13 +76,13 @@ Shader "PandaShad/Vat/VatRotationInterpolationModeSample"
 				UNITY_TRANSFER_INSTANCE_ID(v, o);
 				UNITY_INITIALIZE_VERTEX_OUTPUT_STEREO(o);
 				
-				//[> Vat座標取得 呼んでね <]
-				ApplyVatInfo(v.vid, v.vertex, v.normal
+				//[> Vat座標取得(回転補間用) 呼んでね <]
+				ApplyVatInfoRI(v.indices, v.weights, v.vertex, v.normal
 				#if IS_DISP_TANGENT
 					, v.tangent
 				#endif
 				);
-				
+
 				o.vertex = UnityObjectToClipPos(v.vertex);
 				o.uv = v.uv;
 				o.normalColor = UnityObjectToWorldDir(
@@ -99,7 +100,7 @@ Shader "PandaShad/Vat/VatRotationInterpolationModeSample"
 				UNITY_SETUP_INSTANCE_ID(i);
 				UNITY_SETUP_STEREO_EYE_INDEX_POST_VERTEX(i);
 
-				//Normalを色にする
+				// Normalを色にする
 				fixed4 col = fixed4(normalize(i.normalColor) / 2 + 0.5, 1);
 				return col;
 			}
