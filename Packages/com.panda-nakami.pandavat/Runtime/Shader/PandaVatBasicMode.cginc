@@ -46,19 +46,29 @@ inline void ApplyVatInfo(uint vertexId, inout float4 vertex
 	//次VATフレーム位置
 	float frameRateAfter;
 	//前VATフレームと次VATフレームで、今の時間がどれだけ次VATフレームに寄っているか割合
-	float afterRate;
+	float mixRate;
 
 	//uv.x取得
 	_GetXRate(vertexId, uvX);
 	//フレーム位置情報取得
-	GET_VAT_Y_RATE_FUNCTION(frameRateBefore, frameRateAfter, afterRate);
+	GET_VAT_Y_RATE_FUNCTION(frameRateBefore, frameRateAfter, mixRate);
+
+	//頂点シェーダー内で割合情報が必要な人用
+	#ifdef VAT_CACHE_RATE_X
+		_VatCacheRateX = uvX;
+	#endif
+	#ifdef VAT_CACHE_RATE_Y
+		_VatCacheYBeforeRate = frameRateBefore;
+		_VatCacheYAfterRate = frameRateAfter;
+		_VatCacheMixRate = mixRate;
+	#endif
 
 	//前・次VATフレームの差分情報を取得
 	VatDiffInfo before = _GetFrameAttribute(uvX, frameRateBefore);
 	VatDiffInfo after = _GetFrameAttribute(uvX, frameRateAfter);
 
 	//前・次VATフレーム差分情報を線形補間する
-	VatDiffInfo mixInfo = _MixVatAttribute(before, after, afterRate);
+	VatDiffInfo mixInfo = _MixVatAttribute(before, after, mixRate);
 
 	//位置差分をローカル情報に加味
 	vertex.xyz += mixInfo.posDiff;
@@ -107,17 +117,17 @@ inline VatDiffInfo _GetFrameAttribute(float vertRate, float frameRate)
 }
 
 //VATの前後フレームを線形補間する
-inline VatDiffInfo _MixVatAttribute(VatDiffInfo before, VatDiffInfo after, float afterRate)
+inline VatDiffInfo _MixVatAttribute(VatDiffInfo before, VatDiffInfo after, float mixRate)
 {
 	VatDiffInfo o;
-	o.posDiff = lerp(before.posDiff, after.posDiff, afterRate);
+	o.posDiff = lerp(before.posDiff, after.posDiff, mixRate);
 
 	#ifdef VAT_USE_NORMAL
-		o.normalDiff = lerp(before.normalDiff, after.normalDiff, afterRate);
+		o.normalDiff = lerp(before.normalDiff, after.normalDiff, mixRate);
 	#endif
 
 	#ifdef VAT_USE_TANGENT
-		o.tangentDiff = lerp(before.tangentDiff, after.tangentDiff, afterRate);
+		o.tangentDiff = lerp(before.tangentDiff, after.tangentDiff, mixRate);
 	#endif
 
 	return o;

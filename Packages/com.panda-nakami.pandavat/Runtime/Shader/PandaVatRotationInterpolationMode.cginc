@@ -51,19 +51,29 @@ inout float4 vertex
 	//次VATフレーム位置
 	float frameRateAfter;
 	//前VATフレームと次VATフレームで、今の時間がどれだけ次VATフレームに寄っているか割合
-	float afterRate;
+	float mixRate;
 
 	//uvx取得:今はBone0のみ
 	_GetXRate(boneIndeces[0], uvX);
 	//フレーム位置情報取得
-	GET_VAT_Y_RATE_FUNCTION(frameRateBefore, frameRateAfter, afterRate);
+	GET_VAT_Y_RATE_FUNCTION(frameRateBefore, frameRateAfter, mixRate);
+
+	//頂点シェーダー内で割合情報が必要な人用
+	#ifdef VAT_CACHE_RATE_X
+		_VatCacheRateX = uvX;
+	#endif
+	#ifdef VAT_CACHE_RATE_Y
+		_VatCacheYBeforeRate = frameRateBefore;
+		_VatCacheYAfterRate = frameRateAfter;
+		_VatCacheMixRate = mixRate;
+	#endif
 
 	//前・次VATフレームのボーン情報を取得
 	VatBoneInfo before = _GetFrameAttribute(uvX, frameRateBefore);
 	VatBoneInfo after = _GetFrameAttribute(uvX, frameRateAfter);
 
 	//前・次VATフレーム情報を補間する
-	VatBoneInfo mixInfo = _MixVatAttribute(before, after, afterRate);
+	VatBoneInfo mixInfo = _MixVatAttribute(before, after, mixRate);
 
 	float4x4 mat = _GenerateLocalMatrix(mixInfo);
 
@@ -110,12 +120,12 @@ inline VatBoneInfo _GetFrameAttribute(float vertRate, float frameRate)
 }
 
 //VATの前後フレームを線形補間する
-inline VatBoneInfo _MixVatAttribute(VatBoneInfo before, VatBoneInfo after, float afterRate)
+inline VatBoneInfo _MixVatAttribute(VatBoneInfo before, VatBoneInfo after, float mixRate)
 {
 	VatBoneInfo o;
-	o.pos = lerp(before.pos, after.pos, afterRate);
-	o.rotation = slerp(before.rotation, after.rotation, afterRate);
-	o.scale = lerp(before.scale, after.scale, afterRate);
+	o.pos = lerp(before.pos, after.pos, mixRate);
+	o.rotation = slerp(before.rotation, after.rotation, mixRate);
+	o.scale = lerp(before.scale, after.scale, mixRate);
 	return o;
 }
 

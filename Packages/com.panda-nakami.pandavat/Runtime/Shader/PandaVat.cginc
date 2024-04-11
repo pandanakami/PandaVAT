@@ -43,9 +43,20 @@ static float _VatDeltaSec = (1.0 / _VatFps);//1フレームの時間[秒]
 static float _Dx = 0.5 / _TexelWidth; //VAT取得用の補正値X
 static float _Dy = (0.5 / _TexelHeight);	//VAT取得用の補正値Y
 
+//頂点シェーダー内で割合情報が必要な人用 X
+#ifdef VAT_CACHE_RATE_X
+	static float _VatCacheRateX;
+#endif
+//頂点シェーダー内で割合情報が必要な人用 Y
+#ifdef VAT_CACHE_RATE_Y
+	static float _VatCacheYBeforeRate;
+	static float _VatCacheYAfterRate;
+	static float _VatCacheMixRate;
+#endif
+
 /******************************** prototype ***************************/
 inline void _GetXRate(uint texHorizonInfo, out float uvX);
-inline void _GetYRate(out float frameRateBefore, out float frameRateAfter, out float afterRate);
+inline void _GetYRate(out float frameRateBefore, out float frameRateAfter, out float mixRate);
 
 #ifndef GET_VAT_Y_RATE_FUNCTION
 	#define GET_VAT_Y_RATE_FUNCTION _GetYRate
@@ -69,7 +80,7 @@ inline void _GetXRate(uint texHorizonInfo, out float uvX)
 
 //VAT座標用情報取得
 // => テクスチャ中のどのフレームをとるかの情報(前フレーム、次フレーム、今の時間での前次フレームの位置割合)
-inline void _GetYRate(out float frameRateBefore, out float frameRateAfter, out float afterRate)
+inline void _GetYRate(out float frameRateBefore, out float frameRateAfter, out float mixRate)
 {
 	///フレーム位置をとる(y)。
 	#if VAT_CTRL_WITH_RATE
@@ -107,7 +118,7 @@ inline void _GetYRate(out float frameRateBefore, out float frameRateAfter, out f
 	frameRateAfter = min(frameRateBefore + _VatDeltaFrameRate, 1);//最大割合時、0に戻ってしまうのを防ぐ
 
 	//前VATフレームと次VATフレームで、今の時間がどれだけ次VATフレームに寄っているか割合
-	afterRate = (frameRateRaw - frameRateBefore) / _VatDeltaFrameRate;
+	mixRate = (frameRateRaw - frameRateBefore) / _VatDeltaFrameRate;
 }
 
 #endif

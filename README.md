@@ -5,6 +5,10 @@ PandaVATはアニメーションをVAT(VertexAnimationTexture)化するための
 主にVRChatのワールド向け<br>
 (アバターにも使えると思うけど開始時間設定とかで困るかも)<br>
 
+# 注意点
+本システムでは頂点の座標とかをRGBA Halfの画像で16bit精度で保持させます。座標が大きかったり小さすぎたりするモデルの場合は見た目が劣化すると思います。アニメーションで大きく/小さくする場合も同じ。<br>
+どこまでいい感じにいけるかはそのうち調べます。
+
 # 導入方法
 ## VCCの場合
 1. [ここ](https://pandanakami.github.io/vpm-package-list/install/)からVCCにリポジトリ登録
@@ -57,6 +61,7 @@ Rendererは`MeshRendere`と`SkinnedMeshRenderer`が対象です。<br>
 こんな感じに使う。<br>
 
 ``` csharp
+//ワールド入ってからの時間(秒)。これがシェーダーの_Time.yと同じ
 materialPropertyBlock.SetFloat("_VatStartTimeSec", Time.timeSinceLevelLoad);
 meshRenderer.SetPropertyBlock(materialPropertyBlock);
 ```
@@ -65,7 +70,7 @@ meshRenderer.SetPropertyBlock(materialPropertyBlock);
 <br>
 # 回転補間モードについて<br>
 通常のVATはテクスチャに頂点位置を書き込んでいる仕組み上、急速な回転に弱いです。<br>
-例えば30FPSで1フレームで90°回転するような立方体で、描画するタイミングが1.5/30秒の場合、1フレーム目と2フレーム目のちょうど中間になり、線形補完のせいで立方体がとても小さくなってしまいます。<br>
+例えば30FPSで1フレームで90°回転するような立方体で、描画するタイミングが1.5/30秒の場合、1フレーム目と2フレーム目のちょうど中間になり、線形補間のせいで立方体がとても小さくなってしまいます。<br>
 ![image](https://raw.githubusercontent.com/pandanakami/PandaVAT/images/images/rotation_interporation.png)
 <br>
 回転補間モードは、これを防ぐために、テクスチャに各頂点が影響するボーンのPosition/Rotation/Scaleを持たせ、シェーダー内でRotationの補間にslerpを使用するようにしたモードです。<br>
@@ -91,16 +96,21 @@ Quaternionのslerpしたり、変換行列作ったりしてるので。<br>
 
 ## ・制約<br>
 ### (1) 1つのボーンに100%追従している頂点しかVAT化できない<br>
-そのうちボーン4つまで追従できるようにする予定です。<br>
+そのうちボーン4つまでweight加味して追従できるようにする予定です。<br>
 <br>
 
 ### (2) BlendShapeは非対応
+(1)と合わせてこれができたらアバターのVAT化も現実味帯びますね<br>
 
 ### (3) Transformが`せん断`しているボーンはできない<br>
-せん断例：親TransformがScale(2,1,1)で自TransformがRotation(0,45,0)のようなやつ。<br>
+`せん断`例：親TransformがScale(2,1,1)で自TransformがRotation(0,45,0)のようなやつ。<br>
+元が立方体だったのに菱餅みたいになるやつ。<br>
 位置、回転、スケーリングから変換行列を再現できないやつ。<br>
 式で言うと以下のようなボーン。
 ```
 transform.localToWorldMatrix !=  Matrix4x4.TRS(transform.position, transform.rotation, transform.lossyScale)
 ```
+
+ターゲットのボーン自体がScale(2,1,1)、Rotation(0,45,0)みたいになっているのは大丈夫。正直あまりよくわかっていない。
+
 [^1]: UNITY_DEFINE_INSTANCED_PROPの対象<br>
