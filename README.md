@@ -32,6 +32,10 @@ PandaVATはアニメーションをVAT(VertexAnimationTexture)化するための
 ダイアログに対象のアニメーションがある`Animator`と`1で作ったシェーダー`を指定してください。<br>
 Animatorが持つ`AnimationClip一覧`と`Renderer一覧`が表示されるのでVAT対象にしたいやつを選んでください。<br>
 Rendererは`MeshRendere`と`SkinnedMeshRenderer`が対象です。<br>
+Rendererは複数選ぶとメッシュ結合しますが、制約で`マテリアルスロットは1個に結合されます`。そのうち対応します。<br>
+メッシュの頂点数が出力テクスチャの幅になるので、頂点数多い場合は注意してください。とりあえず8192制限かけています。<br>
+テクスチャサイズを小さくしたい場合は、後述の`回転補間モード`を試してください。<br>
+<br>
 残りの設定をいい感じにしてください。<br>
 <br>
 ## 3. アニメーションのVAT化(生成)<br>
@@ -78,7 +82,7 @@ meshRenderer.SetPropertyBlock(materialPropertyBlock);
 <br>
 シェーダーを回転補間モードにするには以下サンプルを参考にしてください<br>
 `Packages/com.panda-nakami.pandavat/Runtime/Sample/SampleVATShader/VatSampleRotationInterpolatioinModeShad.shader`<br>
-`Properties`の中が変わるくらいです。<br>
+
 シェーダー変更した後、再生成してください。<br>
 <br>
 以下、回転補間モードのメリット・デメリット・制約です。<br>

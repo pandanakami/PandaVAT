@@ -11,7 +11,8 @@ namespace PandaScript.PandaVat
 {
 
 	public class PandaVatGenerator : EditorWindow
-	{		
+	{
+		#region 定数
 		/// <summary>
 		/// 最大頂点数
 		/// (動くなら変えていいよ。頂点数がテクスチャの横幅だよ。)
@@ -26,9 +27,11 @@ namespace PandaScript.PandaVat
 		private const int MAX_FRAME_NUM = (8192-1)/3;
 
 		private const string DEFAULT_SAVE_POS = "Assets";
+		#endregion
 
 		/****************** GUI input *********************/
 
+		#region field
 		private string _savePos;
 		private string _rootFullPath => Directory.GetParent(Application.dataPath).FullName.Replace("\\", "/") + "/";
 
@@ -41,9 +44,9 @@ namespace PandaScript.PandaVat
 		/// </summary>
 		private AnimationClip _animClip;
 		/// <summary>
-		/// VAT対象レンダラー
+		/// VAT対象レンダラーたち
 		/// </summary>
-		private Renderer _targetRenderer;
+		private List<Renderer> _targetRenderers = new List<Renderer>();
 		/// <summary>
 		/// VATシェーダー
 		/// </summary>
@@ -72,10 +75,6 @@ namespace PandaScript.PandaVat
 		/// AnimatorのGameObject
 		/// </summary>
 		private GameObject _rootObj;
-		/// <summary>
-		/// メッシュ
-		/// </summary>
-		private Mesh _baseMesh;
 
 		/// <summary>
 		/// Animator下にあるRenderer一覧
@@ -103,6 +102,11 @@ namespace PandaScript.PandaVat
 		/// </summary>
 		private Vector2 scrollPosition;
 
+		/// <summary>
+		/// Transformから組み合わせボーンのIndexに変換する辞書
+		/// </summary>
+		private Dictionary<Transform, int> _BoneIndexDic = new Dictionary<Transform, int>();
+
 		/******************* field Error情報 ********************/
 
 		/// <summary>
@@ -121,10 +125,11 @@ namespace PandaScript.PandaVat
 		/// エラー情報：エラーメッセージ
 		/// </summary>
 		private string _ErrorCheckResult = null;
-
+		#endregion
 
 		/******************* method ********************/
 
+		#region GUI
 		[MenuItem("ぱんだスクリプト/VatGenerator")]
 		static void ShowWindow()
 		{
@@ -205,7 +210,7 @@ namespace PandaScript.PandaVat
 					style.normal.textColor = Color.red;
 					txt = "[AnimationClipなし]";
 				}
-				else if (!_targetRenderer) {
+				else if (_targetRenderers.Count == 0) {
 					style.normal.textColor = Color.red;
 					txt = "[Rendererなし]";
 				}
@@ -225,21 +230,11 @@ namespace PandaScript.PandaVat
 			if (generateEnable) {
 				if (_isRotationInterpolationMode) {
 					style.normal.textColor = Color.green;
-					if (_targetRenderer is SkinnedMeshRenderer) {
-						txt = "[回転補間モード(SkinnedMeshRenderer)";
-					}
-					else if (_targetRenderer is MeshRenderer) {
-						txt = "[回転補間モード(MeshRenderer)";
-					}
+					txt = "[回転補間モード";
 				}
 				else {
 					style.normal.textColor = Color.cyan;
-					if (_targetRenderer is SkinnedMeshRenderer) {
-						txt = "[通常モード(SkinnedMeshRenderer)";
-					}
-					else if (_targetRenderer is MeshRenderer) {
-						txt = "[通常モード(MeshRenderer)";
-					}
+					txt = "[通常モード";
 				}
 			}
 
@@ -274,7 +269,7 @@ namespace PandaScript.PandaVat
 			Transform createObjPos, 
 			int fps, 
 			Animator rootAnim, 
-			Renderer targetRenderer, 
+			Renderer[] targetRenderers, 
 			AnimationClip clip, 
 			Shader shader,  
 			bool isOverwriteAsset = true, 
@@ -289,12 +284,23 @@ namespace PandaScript.PandaVat
 
 			_DispAnimatorAndRendererSelector(true);
 
-			if (_renderers.Contains(targetRenderer)) {
-				_targetRenderer = targetRenderer;
+			//入力rendererのチェック
+			{
+				var result = true;
+				foreach(var r in targetRenderers) {
+					if (!_renderers.Contains(r)) {
+						result = false;
+						break;
+					}
+				}
+				if (result) {
+					_targetRenderers.AddRange(targetRenderers);
+				}
+				else {
+					throw new Exception("RendererはAnimator配下から指定してください");
+				}
 			}
-			else {
-				throw new Exception("RendererはAnimator配下から指定してください");
-			}
+			
 			if (_animationClips.Contains(clip)) {
 				_animClip = clip;
 			}
@@ -323,29 +329,9 @@ namespace PandaScript.PandaVat
 				throw new Exception(_ErrorCheckResult);
 			}
 
-			_baseMesh = null;
 			_rootObj = _rootAnim.gameObject;
 
-			var isSkinnedMeshRenderer = true;
-
-			if (_targetRenderer is SkinnedMeshRenderer) {
-				_baseMesh = ((SkinnedMeshRenderer)_targetRenderer).sharedMesh;
-			}
-			else if (_targetRenderer is MeshRenderer) {
-				isSkinnedMeshRenderer = false;
-				_baseMesh = _targetRenderer.GetComponent<MeshFilter>()?.sharedMesh;
-			}
-
-			if (!_baseMesh) {
-				Debug.LogError("Error. Mesh is not set.");
-				return;
-			}
-			if (_baseMesh.vertexCount > 8192) {
-				Debug.LogError("Not supported. Mesh with up to 8192 vertices is supported.");
-				return;
-			}
-
-			_CreateVat(isSkinnedMeshRenderer);
+			_CreateVat();
 			Debug.Log($"Generate VAT Finish!!!");
 		}
 
@@ -357,14 +343,19 @@ namespace PandaScript.PandaVat
 			EditorGUI.BeginChangeCheck();
 			_rootAnim = (Animator)EditorGUILayout.ObjectField("対象のAnimator", _rootAnim, typeof(Animator), true);
 			if (EditorGUI.EndChangeCheck() || isManual) {
+				_targetRenderers.Clear();
+				_renderers = null;
+				_animationClips = null;
+				_animClip = null;
+
 				if (_rootAnim) {
 					_renderers = _rootAnim.GetComponentsInChildren<Renderer>();
 					if (_renderers.Length == 0 || !_renderers.Any(o=>o is SkinnedMeshRenderer || o is MeshRenderer)) {
 						_renderers = null;
-						_targetRenderer = null;
+						_targetRenderers.Clear();
 					}
 					else {
-						_targetRenderer = _renderers[0];
+						_targetRenderers.Add(_renderers[0]);
 						_showMeshRenderers = true;
 						_CheckRendererEnable();
 
@@ -384,23 +375,11 @@ namespace PandaScript.PandaVat
 
 
 				}
-				else {
-					_renderers = null;
-					_targetRenderer = null;
-
-					_animationClips = null;
-					_animClip = null;
-				}
-
 			}
 
+			//レンダラー選択
 			if (_renderers != null) {
 				DrawSeparator();
-				if (_targetRenderer != null) {
-					GUI.enabled = false;
-					EditorGUILayout.ObjectField("VAT対象のRenderer", _targetRenderer, typeof(MeshRenderer), true);
-					GUI.enabled = true;
-				}
 
 				_showMeshRenderers = EditorGUILayout.Foldout(_showMeshRenderers, "Renderer一覧");
 
@@ -411,12 +390,17 @@ namespace PandaScript.PandaVat
 						}
 
 						EditorGUILayout.BeginHorizontal();
-						if (EditorGUILayout.Toggle(renderer == _targetRenderer)) {
-							var changeFlag = _targetRenderer != renderer;
-							_targetRenderer = renderer;
-							if (changeFlag) {
-								_CheckRendererEnable();
+						EditorGUI.BeginChangeCheck();
+						var isChecked = EditorGUILayout.Toggle(_targetRenderers.Contains(renderer));
+						if (EditorGUI.EndChangeCheck()) {
+							if (isChecked) {
+								_targetRenderers.Add(renderer);
 							}
+							else {
+								_targetRenderers.Remove(renderer);
+							}
+							
+							_CheckRendererEnable();
 						}
 						GUI.enabled = false;
 						EditorGUILayout.ObjectField(renderer, typeof(MeshRenderer), true);
@@ -426,7 +410,7 @@ namespace PandaScript.PandaVat
 				}
 			}
 
-
+			//アニメーションクリップ選択
 			if (_animationClips != null) {
 
 				DrawSeparator();
@@ -457,51 +441,30 @@ namespace PandaScript.PandaVat
 			}
 		}
 
+		#region チェックメソッド
 		/// <summary>
 		/// 選択したレンダラーがVAT化OKか調べる
 		/// ダメならエラー情報入ってGUIメインでエラー処理
 		/// </summary>
 		private void _CheckRendererEnable()
 		{
-			if (!_targetRenderer) {
+			if (_targetRenderers.Count == 0) {
 				_ErrorCheckResult = "[Rendererなし]";
 				_hasRendererError = true;
 				return;
 			}
 
-			bool isSkinnedMeshRenderer = false;
-			if (_targetRenderer is SkinnedMeshRenderer) {
-				isSkinnedMeshRenderer = true;
-				_baseMesh = ((SkinnedMeshRenderer)_targetRenderer).sharedMesh;
-			}
-			else if (_targetRenderer is MeshRenderer) {
-				_baseMesh = _targetRenderer.GetComponent<MeshFilter>()?.sharedMesh;
-			}
-			else {
-				_ErrorCheckResult = "[非対応のRenderer]";
-				_hasRendererError = true;
-				return;
-			}
-
-			if (!_baseMesh) {
-				if (isSkinnedMeshRenderer) {
-					_ErrorCheckResult = "[Rendererにメッシュ未セット]";
+			foreach(var r in _targetRenderers) {
+				if(!(r is SkinnedMeshRenderer || r is MeshRenderer)) {
+					_ErrorCheckResult = "[非対応のRenderer]";
 					_hasRendererError = true;
-				}
-				else {
-					_ErrorCheckResult = "[MeshFilterにメッシュ未セット]";
-					_hasRendererError = true;
+					return;
 				}
 			}
-			else if (_baseMesh.vertexCount > MAX_VERTEX_NUM) {
-				_ErrorCheckResult = $"[頂点数が({MAX_VERTEX_NUM})を超えています]";
-				_hasRendererError = true;
-			}
-			else {
-				//エラーなし
-				_ErrorCheckResult = null;
-				_hasRendererError = false;
-			}
+			
+			//エラーなし
+			_ErrorCheckResult = null;
+			_hasRendererError = false;
 		}
 
 		/// <summary>
@@ -565,20 +528,51 @@ namespace PandaScript.PandaVat
 			_ErrorCheckResult = null;
 
 		}
-		/************************************* VAT生成 ************************************************************/
+		#endregion
 
+		/// <summary>
+		/// GUIのセパレータ
+		/// </summary>
+		private void DrawSeparator()
+		{
+			// 仕切り線のスタイルを設定
+			GUIStyle separatorStyle = new GUIStyle(GUI.skin.box);
+			separatorStyle.border.top = 1;
+			separatorStyle.border.bottom = 1;
+			separatorStyle.margin.top = 10;
+			separatorStyle.margin.bottom = 10;
+			separatorStyle.fixedHeight = 2;
+
+			// 仕切り線を描画
+			GUILayout.Box(GUIContent.none, separatorStyle, GUILayout.ExpandWidth(true), GUILayout.Height(1));
+		}
+
+		#endregion
+
+		#region VAT生成
+		/************************************* VAT生成 ************************************************************/
 
 		/// <summary>
 		/// VAT生成
 		/// </summary>
 		/// <param name="isSkinedMeshRenderer"></param>
-		private void _CreateVat(bool isSkinedMeshRenderer)
+		private void _CreateVat()
 		{
-			var rendererName = _targetRenderer.name;
+			Selection.activeGameObject = null;
 
-			var vertexCount = _baseMesh.vertexCount;    //頂点数
-			var boneCount = _isRotationInterpolationMode ? (isSkinedMeshRenderer ? (_targetRenderer as SkinnedMeshRenderer).bones.Length : 1) : 0;
-			var texWidth = _isRotationInterpolationMode ? boneCount : vertexCount;
+			var rendererName = _targetRenderers.Count == 1 ? _targetRenderers[0].name : _rootObj.name;
+
+			var texWidth = _GetTexWidth();
+			if(texWidth > MAX_VERTEX_NUM) {
+				_hasRendererError = true;
+				if (_isRotationInterpolationMode) {
+					_ErrorCheckResult = "[ボーン数が多すぎ]";
+				}
+				else {
+					_ErrorCheckResult = "[頂点数が多すぎ]";
+				}
+				throw new Exception(_ErrorCheckResult);
+			}
 
 			var duration = _animClip.length;  //アニメーション時間　秒
 			var frameCount = Mathf.Max((int)(duration * _animFps + 1), 1);//アニメーションフレーム数
@@ -591,45 +585,82 @@ namespace PandaScript.PandaVat
 
 
 			var rootT = _rootObj.transform;
-			var renderT = _targetRenderer.transform;
 
 			//既にアニメーションモード中の場合解除する
 			AnimationMode.StopAnimationMode();
+			AnimationMode.StartAnimationMode();
+			AnimationMode.SampleAnimationClip(_rootObj, _animClip, 0);
+			AnimationMode.StopAnimationMode();
+
 			CreateTmpTransform();
 
+
 			//デフォルト情報保持
-			var defaultVertices = _baseMesh.vertices;
-			var defaultNormals = _baseMesh.normals;
-			var defaultTangents = _baseMesh.tangents;
-			BoneWeight[] boneWeights = null;
+			List<Vector3> defaultVertices = new List<Vector3>();
+			List<Vector3> defaultNormals = new List<Vector3>();
+			List<Vector4> defaultTangents = new List<Vector4>();
+			List<int> triangles = new List<int>();
+			List<List<Vector2>> uvs = new List<List<Vector2>>(Enumerable.Repeat(0,8).Select(_=> new List<Vector2>()));
+			List< BoneWeight>boneWeights = new List<BoneWeight>();
+
 			//回転補正モード
 			if (_isRotationInterpolationMode) {
-				_GenerateVATRotationInterpolationMode(rootT, renderT, texture, boneCount, frameCount, duration, isSkinedMeshRenderer,
-					ref defaultVertices, ref defaultNormals, ref defaultTangents, out boneWeights);
+				_PrepareCombineBoneInfo();
+
+				foreach(var render in _targetRenderers) {
+
+					var baseMesh = _GetMesh(render);
+					var vertices = baseMesh.vertices;
+					var normals = baseMesh.normals;
+					var tangents = baseMesh.tangents;
+					var boneCount = (render is SkinnedMeshRenderer) ? (render as SkinnedMeshRenderer).bones.Length : 1;
+					_GenerateVATRotationInterpolationMode(rootT, render, baseMesh, texture, boneCount, frameCount, duration,
+						ref vertices, ref normals, ref tangents, boneWeights);
+
+					//メッシュ情報更新
+					_UpdateMeshInfo(baseMesh, vertices, normals, tangents, defaultVertices, defaultNormals, defaultTangents, triangles, uvs);
+				}
 			}
 			//通常モード
 			else {
+				var texWidthOffset = 0;
 
-				//Renderのカスタム座標系を作る
-				var customRenderT = CreateCustomTransform(renderT, rootT.parent);
-				for (var i = 0; i < vertexCount; i++) {
-					defaultVertices[i] = customRenderT.TransformPoint(defaultVertices[i]);
-					defaultNormals[i] = customRenderT.TransformVector(defaultNormals[i]);
-					var tanXyz = customRenderT.TransformVector(defaultTangents[i]);
-					defaultTangents[i].x = tanXyz.x;
-					defaultTangents[i].y = tanXyz.y;
-					defaultTangents[i].z = tanXyz.z;
+				foreach(var render in _targetRenderers) {
+					var baseMesh = _GetMesh(render);
+					var vertices = baseMesh.vertices;
+					var normals = baseMesh.normals;
+					var tangents = baseMesh.tangents;
+					var vertexCount = vertices.Length;
+
+					//Renderのカスタム座標系を作る
+					var customRenderT = CreateCustomTransform(render.transform, rootT.parent);
+					for (var i = 0; i < vertexCount; i++) {
+						vertices[i] = customRenderT.TransformPoint(vertices[i]);
+						normals[i] = customRenderT.TransformVector(normals[i]);
+						var tanXyz = customRenderT.TransformVector(tangents[i]);
+						tangents[i].x = tanXyz.x;
+						tangents[i].y = tanXyz.y;
+						tangents[i].z = tanXyz.z;
+					}
+					DestroyImmediate(customRenderT.gameObject);
+
+					_GenerateVABasic(rootT, render, baseMesh, texture, vertexCount, texWidthOffset, frameCount, duration,
+						vertices, normals, tangents);
+
+					//メッシュ情報更新
+					_UpdateMeshInfo(baseMesh, vertices, normals, tangents, defaultVertices, defaultNormals, defaultTangents, triangles, uvs);
+
+					texWidthOffset += vertexCount;
 				}
-				DestroyImmediate(customRenderT.gameObject);
+				
 
-				_GenerateVABasic(rootT, renderT, texture, vertexCount, frameCount, duration, 
-					isSkinedMeshRenderer, defaultVertices, defaultNormals, defaultTangents);
 			}
 
 			texture.Apply();
 
 			//各種保存
-			_SaveAsset(texture, rendererName, defaultVertices, defaultNormals, defaultTangents, boneWeights);
+			_SaveAsset(texture, rendererName,
+				defaultVertices.ToArray(), defaultNormals.ToArray(), defaultTangents.ToArray(), triangles.ToArray(), uvs, boneWeights.ToArray());
 
 
 			DestroyTmpTransform();
@@ -639,19 +670,22 @@ namespace PandaScript.PandaVat
 		/// VAT生成(通常用)
 		/// </summary>
 		/// <param name="rootT">AnimatorのルートTransform</param>
-		/// <param name="renderT">RendererのTransform</param>
+		/// <param name="render">Renderer</param>
+		/// <param name="baseMesh">ベースのメッシュ</param>
 		/// <param name="texture">書き込み対象テクスチャ</param>
 		/// <param name="vertexCount">頂点の数</param>
+		/// <param name="texWidthOffset">テクスチャ書き込み開始位置</param>
 		/// <param name="frameCount">フレーム数</param>
 		/// <param name="duration">アニメーションの長さ(秒)</param>
-		/// <param name="isSkinedMeshRenderer">レンダラーの種類</param>
 		/// <param name="defaultVertices">デフォルトの頂点一覧</param>
 		/// <param name="defaultNormals">デフォルトの法線一覧</param>
 		/// <param name="defaultTangents">デフォルトの接線一覧</param>
-		private void _GenerateVABasic(Transform rootT, Transform renderT, Texture2D texture, int vertexCount, int frameCount, float duration, 
-			bool isSkinedMeshRenderer, Vector3[] defaultVertices, Vector3[] defaultNormals, Vector4[] defaultTangents)
+		private void _GenerateVABasic(Transform rootT, Renderer render, Mesh baseMesh, Texture2D texture, int vertexCount, int texWidthOffset, int frameCount, float duration, 
+			Vector3[] defaultVertices, Vector3[] defaultNormals, Vector4[] defaultTangents)
 		{
-			var targetSkinnedMeshRenderer = _targetRenderer as SkinnedMeshRenderer;
+			var renderT = render.transform;
+			var targetSkinnedMeshRenderer = render as SkinnedMeshRenderer;
+			var isSkinedMeshRenderer = targetSkinnedMeshRenderer != null;
 
 			// エディタモードでのアニメーション制御を有効にする
 			AnimationMode.StartAnimationMode();
@@ -666,7 +700,7 @@ namespace PandaScript.PandaVat
 					targetSkinnedMeshRenderer.BakeMesh(tmpMesh, true);// useScale=trueだとルートのスケールが入らない
 				}
 				else {
-					tmpMesh = _baseMesh;
+					tmpMesh = baseMesh;
 				}
 
 				Vector3[] vertices = tmpMesh.vertices;
@@ -682,9 +716,10 @@ namespace PandaScript.PandaVat
 					var tangent = customRendererT.TransformDirection(tangents[vertIndex]);
 					var tangentDiff = new Vector4(tangent.x, tangent.y, tangent.z, tangents[vertIndex].w) - defaultTangents[vertIndex];
 
-					texture.SetPixel(vertIndex, frameIndex, GetColor(positionDiff));
-					texture.SetPixel(vertIndex, frameIndex + frameCount, GetColor(normalDiff));
-					texture.SetPixel(vertIndex, frameIndex + frameCount * 2, GetColor(tangentDiff));
+					var wIndex = texWidthOffset + vertIndex;
+					texture.SetPixel(wIndex , frameIndex, GetColor(positionDiff));
+					texture.SetPixel(wIndex , frameIndex + frameCount, GetColor(normalDiff));
+					texture.SetPixel(wIndex, frameIndex + frameCount * 2, GetColor(tangentDiff));
 				}
 
 				DestroyImmediate(customRendererT.gameObject);
@@ -697,17 +732,19 @@ namespace PandaScript.PandaVat
 		/// VAT生成(回転補間用)
 		/// </summary>
 		/// <param name="rootT">AnimatorのルートTransform</param>
-		/// <param name="renderT">RendererのTransform</param>
+		/// <param name="render">Renderer</param>
+		/// <param name="baseMesh">ベースのメッシュ</param>
 		/// <param name="texture">書き込み対象テクスチャ</param>
 		/// <param name="boneCount">頂点の数</param>
 		/// <param name="frameCount">フレーム数</param>
 		/// <param name="duration">アニメーションの長さ(秒)</param>
-		/// <param name="isSkinnedMeshRendere">SkinnedMeshrendererか否か</param>
-		private void _GenerateVATRotationInterpolationMode(Transform rootT, Transform renderT, Texture2D texture, int boneCount, 
-			int frameCount, float duration, bool isSkinnedMeshRendere,
-			ref Vector3[] updateDefaultVerteces, ref Vector3[] updateDefaultNormals, ref Vector4[] updateDefaultTangents, out BoneWeight[] outBoneWeights)
+		private void _GenerateVATRotationInterpolationMode(Transform rootT, Renderer render, Mesh baseMesh, Texture2D texture, int boneCount,
+			int frameCount, float duration,
+			ref Vector3[] updateDefaultVerteces, ref Vector3[] updateDefaultNormals, ref Vector4[] updateDefaultTangents, List<BoneWeight> outBoneWeights)
 		{
-			var targetSkinnedMeshRenderer = _targetRenderer as SkinnedMeshRenderer;
+			var renderT = render.transform;
+			var targetSkinnedMeshRenderer = render as SkinnedMeshRenderer;
+			var isSkinnedMeshRendere = targetSkinnedMeshRenderer != null;
 
 			Transform[] customBones;
 			//デフォルトメッシュに対して。
@@ -717,11 +754,11 @@ namespace PandaScript.PandaVat
 			//最終行に書く
 
 			{
-				BoneWeight[] boneWeights = _baseMesh.boneWeights;
+				BoneWeight[] boneWeights = baseMesh.boneWeights;
 				Transform[] bones = isSkinnedMeshRendere ? targetSkinnedMeshRenderer.bones : new Transform[1] { renderT };
-				var defaultDiffPos = _baseMesh.vertices;
-				var defaultDiffNormals = _baseMesh.normals;
-				var defaultDiffTangents= _baseMesh.tangents;
+				var defaultDiffPos = baseMesh.vertices;
+				var defaultDiffNormals = baseMesh.normals;
+				var defaultDiffTangents= baseMesh.tangents;
 
 				//ルートとの差を持つトランスフォーム
 				customBones = new Transform[bones.Length];
@@ -761,25 +798,32 @@ namespace PandaScript.PandaVat
 					updateDefaultTangents[vertIndex].w = w;
 				}
 
+				//BoneWeight出力
 				if (isSkinnedMeshRendere) {
-					outBoneWeights = boneWeights;
+					for(var i=0;i<boneWeights.Length;i++) {
+						var bone = bones[boneWeights[i].boneIndex0];
+						var combineIndex = _BoneIndexDic[bone];
+						boneWeights[i].boneIndex0 = combineIndex;
+					}
 				}
 				else {
-					outBoneWeights = new BoneWeight[vertCount];
+
+					var bone = renderT;
+					var combineIndex = _BoneIndexDic[bone];
+
 					var baseBoneWeight = new BoneWeight() {
 						weight0 = 1,
 						weight1 = 0,
 						weight2 = 0,
 						weight3 = 0,
-						boneIndex0 = 0,
+						boneIndex0 = combineIndex,
 						boneIndex1 = 0,
 						boneIndex2 = 0,
 						boneIndex3 = 0
 					};
-					for (var i=0;i< vertCount;i++){
-						outBoneWeights[i] = baseBoneWeight;
-					};
+					boneWeights = Enumerable.Repeat(baseBoneWeight, vertCount).ToArray();
 				}
+				outBoneWeights.AddRange(boneWeights);
 			}
 
 			// エディタモードでのアニメーション制御を有効にする
@@ -795,25 +839,32 @@ namespace PandaScript.PandaVat
 				AnimationMode.SampleAnimationClip(_rootObj, _animClip, ((float)frameIndex / (frameCount - 1)) * duration);
 
 				Transform[] bones = isSkinnedMeshRendere ? targetSkinnedMeshRenderer.bones : new Transform[1] { renderT };
-				Mesh mesh = isSkinnedMeshRendere ? targetSkinnedMeshRenderer.sharedMesh : _baseMesh;
+				Mesh mesh = isSkinnedMeshRendere ? targetSkinnedMeshRenderer.sharedMesh : baseMesh;
 				BoneWeight[] boneWeights = mesh.boneWeights;
 
 				Transform customBone = customBones[0];
 
 				//現フレームのボーンをカスタム座標系にする
 				for (var i = 0; i < boneCount; i++) {
+
+					var bone = bones[i];
+					var combineBoneIndex = _BoneIndexDic[bone];
+
 					customBone = CreateCustomTransform(bones[i], rootT.parent, customBone);
 
 					var position = customBone.localPosition;
 					var scale = customBone.localScale;
 					var rotation = customBone.localRotation;
 
-					texture.SetPixel(i, frameIndex, GetColor(position));
-					texture.SetPixel(i, frameIndex + frameCount, GetColor(rotation));
-					texture.SetPixel(i, frameIndex + frameCount * 2, GetColor(scale));
+					var wIndex = combineBoneIndex;
+					texture.SetPixel(wIndex, frameIndex, GetColor(position));
+					texture.SetPixel(wIndex, frameIndex + frameCount, GetColor(rotation));
+					texture.SetPixel(wIndex, frameIndex + frameCount * 2, GetColor(scale));
+
 				}
 			}
 
+			//テンポラリオブジェクト破棄
 			for (var i = 0; i < customBones.Length; i++) {
 				DestroyImmediate(customBones[i].gameObject);
 			}
@@ -829,7 +880,8 @@ namespace PandaScript.PandaVat
 		/// <param name="vertices"></param>
 		/// <param name="normals"></param>
 		/// <param name="tangents"></param>
-		private void _SaveAsset(Texture2D texture, string rendererName, Vector3[] vertices, Vector3[] normals, Vector4[] tangents, BoneWeight[] boneWeights)
+		private void _SaveAsset(Texture2D texture, string rendererName, 
+			Vector3[] vertices, Vector3[] normals, Vector4[] tangents, int[] triangles, List<List<Vector2>> uvs, BoneWeight[] boneWeights)
 		{
 
 			string dirName = _savePos;
@@ -862,7 +914,7 @@ namespace PandaScript.PandaVat
 			//メッシュセット
 			Mesh newMesh;
 			{
-				var meshPath = $"{dirName}/{_baseMesh.name}_vat.asset";
+				var meshPath = $"{dirName}/{_GetMeshName()}_vat.asset";
 
 				var oldMeshAsset = AssetDatabase.LoadAssetAtPath<Mesh>(meshPath);
 				var isCreate = false;
@@ -874,13 +926,13 @@ namespace PandaScript.PandaVat
 						newMesh.Clear();
 					}
 					else {
-						newMesh = Instantiate(_baseMesh);
+						newMesh = new Mesh();
 						isCreate = true;
 					}
 				}
 				//上書きしない
 				else {
-					newMesh = Instantiate(_baseMesh);
+					newMesh = new Mesh();
 					meshPath = AssetDatabase.GenerateUniqueAssetPath(meshPath);
 					isCreate = true;
 				}
@@ -888,15 +940,13 @@ namespace PandaScript.PandaVat
 				newMesh.vertices = vertices;
 				newMesh.normals = normals;
 				newMesh.tangents = tangents;
-				newMesh.triangles = _baseMesh.triangles;
+				newMesh.triangles = triangles;
 				
-				var uvs = new List<Vector2>();
 				for (var i = 0; i < 8; i++) {
-					_baseMesh.GetUVs(i, uvs);
-					if (uvs.Count > 0) {
-						newMesh.SetUVs(i, uvs);
+					var uv = uvs[i];
+					if (uv.Count > 0) {
+						newMesh.SetUVs(i, uv);
 					}
-					uvs.Clear();
 				}
 
 				
@@ -927,7 +977,7 @@ namespace PandaScript.PandaVat
 						newMat = oldMatAsset;
 					}
 					else {
-						newMat = new Material(_targetRenderer.sharedMaterial);
+						newMat = new Material(_targetRenderers[0].sharedMaterial);
 						isCreate = true;
 					}
 					
@@ -935,7 +985,7 @@ namespace PandaScript.PandaVat
 				//上書きしない
 				else {
 					matPath = AssetDatabase.GenerateUniqueAssetPath(matPath);
-					newMat = new Material(_targetRenderer.sharedMaterial);
+					newMat = new Material(_targetRenderers[0].sharedMaterial);
 					isCreate = true;
 				}
 				newMat.shader = _targetShader;
@@ -997,7 +1047,201 @@ namespace PandaScript.PandaVat
 			}
 		}
 
+		/************************************* SUB ****************************/
 
+		/// <summary>
+		/// メッシュ情報更新
+		/// </summary>
+		/// <param name="addMesh"></param>
+		/// <param name="addNormals"></param>
+		/// <param name="addTangents"></param>
+		/// <param name="addVertices"></param>
+		/// <param name="vertices"></param>
+		/// <param name="normals"></param>
+		/// <param name="tangents"></param>
+		/// <param name="triangles"></param>
+		/// <param name="uvs"></param>
+		/// <exception cref="NotImplementedException"></exception>
+		private void _UpdateMeshInfo(Mesh addMesh, Vector3[] addVertices, Vector3[] addNormals, Vector4[] addTangents,
+			List<Vector3> vertices, List<Vector3> normals, List<Vector4> tangents, List<int> triangles, List<List<Vector2>> uvs)
+		{
+
+			var offset = vertices.Count;
+			vertices.AddRange(addVertices);
+			normals.AddRange(addNormals);
+			tangents.AddRange(addTangents);
+			triangles.AddRange(addMesh.triangles.Select(t=>t+offset));
+
+			List<Vector2> tmpUv = new List<Vector2>();
+			//UV0~7の追加。
+			for(var i = 0; i < 8; i++) {
+				addMesh.GetUVs(i, tmpUv);
+				if(tmpUv.Count == 0) {
+					break;
+				}
+
+				var uv = uvs[i];
+				//他メッシュで使用していないuvX使う場合は、0埋めしとく
+				if (uv.Count < offset) {
+					var addNum = offset - uv.Count;
+					uv.AddRange(Enumerable.Repeat(Vector2.zero, addNum));
+				}else if(uv.Count > offset) {
+					throw new Exception("???");
+				}
+				uv.AddRange(tmpUv);
+
+				tmpUv.Clear();
+			}
+
+			//uvXを均す
+			{
+				var baseUv = uvs[0];
+				for(var i = 1; i < 8; i++) {
+					var uv = uvs[i];
+					if(uv.Count == 0) {
+						break;
+					}
+					var addNum = baseUv.Count - uv.Count;
+					//UV0と差があれば、0埋めする
+					if(addNum > 0) {
+						uv.AddRange(Enumerable.Repeat(Vector2.zero, addNum));
+					}
+				}
+			}
+
+		}
+
+		/// <summary>
+		/// RenderからMesh取得
+		/// </summary>
+		/// <param name="render"></param>
+		/// <returns></returns>
+		private Mesh _GetMesh(Renderer render)
+		{
+			if (render is SkinnedMeshRenderer) {
+				return (render as SkinnedMeshRenderer).sharedMesh;
+			}
+			else {
+				return render.GetComponent<MeshFilter>().sharedMesh;
+			}
+		}
+
+		/// <summary>
+		/// メッシュ名取得
+		/// </summary>
+		/// <returns></returns>
+		private string _GetMeshName()
+		{
+			if (_targetRenderers.Count == 1) {
+				return _GetMesh(_targetRenderers[0]).name;
+			}
+			else {
+				return _rootObj.name;
+			}
+		}
+
+		/// <summary>
+		/// 生成するテクスチャ幅取得
+		/// </summary>
+		/// <returns></returns>
+		private int _GetTexWidth()
+		{
+			//回転補間モードの場合はボーン数
+			if (_isRotationInterpolationMode) {
+				return _GetCombineBoneNum();
+			}
+			//通常モードの場合は頂点数
+			else {
+
+				var vertexCount = 0;
+				foreach (var r in _targetRenderers) {
+					if (r is SkinnedMeshRenderer) {
+						vertexCount += (r as SkinnedMeshRenderer).sharedMesh.vertexCount;
+					}
+					else {
+						vertexCount += (r.GetComponent<MeshFilter>().sharedMesh).vertexCount;
+					}
+				}
+				return vertexCount;
+			}
+		}
+
+		/// <summary>
+		/// 回転補間モード時のボーン数
+		/// </summary>
+		/// <returns></returns>
+		private int _GetCombineBoneNum()
+		{
+			Dictionary<Transform, bool> _countDic = new Dictionary<Transform, bool>();
+			var ret = 0;
+			//skinned mesh renderer
+			//異なるルートボーンを持つものをカウントアップ
+			foreach (var r in _targetRenderers) {
+				if (r is SkinnedMeshRenderer) {
+					var r2 = (r as SkinnedMeshRenderer);
+					var rootBone = r2.rootBone;
+
+					if (!_countDic.ContainsKey(rootBone)) {
+						_countDic.Add(rootBone, true);
+						ret += r2.bones.Length;
+					}
+				}
+			}
+
+			//mesh renderer
+			foreach (var r in _targetRenderers) {
+				if(r is MeshRenderer) {
+					ret++;
+				}
+			}
+			return ret;
+		}
+
+		/// <summary>
+		/// 回転補間モード用にボーンを準備
+		/// </summary>
+		private void _PrepareCombineBoneInfo()
+		{
+			///TransformからカスタムボーンのIndexに変換する辞書を構築
+			_BoneIndexDic.Clear();
+			var offset = 0;
+
+			//skinned mesh renderer
+			Dictionary<Transform, bool> _countDic = new Dictionary<Transform, bool>();
+			foreach (var r in _targetRenderers) {
+				if (r is SkinnedMeshRenderer) {
+					var r2 = (r as SkinnedMeshRenderer);
+					var bones = r2.bones;
+					var rootBone = r2.rootBone;
+
+					//既に処理済みのボーンが再び来たらcontinue
+					if (_countDic.ContainsKey(rootBone)) {
+						continue;
+					}
+					_countDic.Add(rootBone, true);
+
+					for (var i = 0; i < bones.Length; i++) {
+						var customIndex = i + offset;
+						_BoneIndexDic.Add(bones[i], customIndex);
+					}
+					offset += bones.Length;
+				}
+			}
+
+			//mesh renderer
+			foreach (var r in _targetRenderers) {
+				if (r is MeshRenderer) {
+					var r2 = (r as MeshRenderer);
+					var customIndex = offset++;
+					var bone = r.transform;
+					_BoneIndexDic.Add(bone, customIndex);
+				}
+			}
+		}
+		
+		#endregion
+
+		#region UITL
 		/****************** UTIL *********************/
 
 		private Color GetColor(Vector3 data)
@@ -1028,20 +1272,11 @@ namespace PandaScript.PandaVat
 			return col;
 		}
 
-		private void DrawSeparator()
-		{
-			// 仕切り線のスタイルを設定
-			GUIStyle separatorStyle = new GUIStyle(GUI.skin.box);
-			separatorStyle.border.top = 1;
-			separatorStyle.border.bottom = 1;
-			separatorStyle.margin.top = 10;
-			separatorStyle.margin.bottom = 10;
-			separatorStyle.fixedHeight = 2;
-
-			// 仕切り線を描画
-			GUILayout.Box(GUIContent.none, separatorStyle, GUILayout.ExpandWidth(true), GUILayout.Height(1));
-		}
-
+		/// <summary>
+		/// フォルダなければ再帰的に作る
+		/// </summary>
+		/// <param name="path"></param>
+		/// <returns></returns>
 		private string CreateFoldersRecursivelyIfNotExist(string path)
 		{
 			// 'Assets' から始まらないパスを正しい形に修正
@@ -1155,6 +1390,6 @@ namespace PandaScript.PandaVat
 			
 			return newName;
 		}
-
+		#endregion
 	}
 }
