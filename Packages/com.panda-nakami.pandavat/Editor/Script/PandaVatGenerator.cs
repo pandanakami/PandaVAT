@@ -384,6 +384,20 @@ namespace PandaScript.PandaVat
 				_showMeshRenderers = EditorGUILayout.Foldout(_showMeshRenderers, "Renderer一覧");
 
 				if (_showMeshRenderers) {
+
+					//一括選択ボタン
+					GUILayout.BeginHorizontal();
+					if (GUILayout.Button("全選択")) {
+						_targetRenderers.Clear();
+						_targetRenderers.AddRange(_renderers);
+					}
+					if (GUILayout.Button("全解除")) {
+						_targetRenderers.Clear();
+					}
+					GUILayout.EndHorizontal();
+
+					DrawSeparator();
+
 					foreach (var renderer in _renderers) {
 						if(renderer is not MeshRenderer && renderer is not SkinnedMeshRenderer) {
 							continue;
