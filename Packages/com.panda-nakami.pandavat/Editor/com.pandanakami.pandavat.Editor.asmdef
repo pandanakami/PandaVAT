@@ -2,7 +2,7 @@
     "name": "com.pandanakami.pandavat.Editor",
     "rootNamespace": "",
     "references": [
-        "com.vrchat.pandanakami.pandavat"
+        "com.pandanakami.pandavat"
     ],
     "includePlatforms": [
         "Editor"

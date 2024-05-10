@@ -248,6 +248,24 @@ namespace PandaScript.PandaVat
 				_Generate();
 			}
 
+			//設定保存ボタン
+			if (GUILayout.Button("Save Vat Config To Animator", GUILayout.Height(25))) {
+				var conf = _rootAnim.GetComponent<PandaVatConfig>();
+				if (!conf) {
+					conf = _rootAnim.gameObject.AddComponent<PandaVatConfig>();
+				}
+
+				conf._savePos = _savePos;
+				conf._isOverwriteAsset = _isOverwriteAsset;
+				conf._outputTransform = _outputTransform;
+				conf._isOverwriteGameobject = _isOverwriteGameobject;
+				conf._animFps = _animFps;
+				conf._animClip = _animClip;
+				conf._targetRenderers = new List<Renderer>(_targetRenderers);
+				conf._targetShader = _targetShader;
+
+			}
+
 			GUI.enabled = true;
 		}
 
@@ -349,8 +367,9 @@ namespace PandaScript.PandaVat
 				_animClip = null;
 
 				if (_rootAnim) {
-					_renderers = _rootAnim.GetComponentsInChildren<Renderer>();
-					if (_renderers.Length == 0 || !_renderers.Any(o=>o is SkinnedMeshRenderer || o is MeshRenderer)) {
+
+					_renderers = _rootAnim.GetComponentsInChildren<Renderer>().Where(r=>r is MeshRenderer || r is SkinnedMeshRenderer).ToArray();
+					if (_renderers.Length == 0) {
 						_renderers = null;
 						_targetRenderers.Clear();
 					}
@@ -373,6 +392,21 @@ namespace PandaScript.PandaVat
 						_CheckAnimClipEnable();
 					}
 
+					var conf = _rootAnim.GetComponent<PandaVatConfig>();
+					if (conf) {
+						_savePos = conf._savePos;
+						_isOverwriteAsset = conf._isOverwriteAsset;
+						_outputTransform = conf._outputTransform;
+						_isOverwriteGameobject = conf._isOverwriteGameobject;
+						_animFps = conf._animFps;
+						_animClip = conf._animClip;
+						_targetRenderers = conf._targetRenderers;
+						_targetShader = conf._targetShader;
+
+						_CheckRendererEnable();
+						_CheckAnimClipEnable();
+						_CheckMode();
+					}
 
 				}
 			}

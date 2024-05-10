@@ -19,7 +19,6 @@ namespace PandaScript.PandaVat
 
         public void OnAction()
         {
-
             _prop.SetFloat("_VatStartTimeSec", Time.time);
             _renderer.SetPropertyBlock(_prop);
         }
