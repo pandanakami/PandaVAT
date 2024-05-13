@@ -15,6 +15,10 @@ struct VatDiffInfo
 	#ifdef VAT_USE_TANGENT
 		float4 tangentDiff;	//接線差分
 	#endif
+
+	#if VAT_OBJECT_ON_OFF_ENABLE
+		float isObjectOn;
+	#endif
 };
 
 /******************************** macro define ***************************/
@@ -73,6 +77,11 @@ inline void ApplyVatInfo(uint vertexId, inout float4 vertex
 	//位置差分をローカル情報に加味
 	vertex.xyz += mixInfo.posDiff;
 
+	//Object ON/OFFアニメーション有効
+	#if VAT_OBJECT_ON_OFF_ENABLE
+		vertex.xyz = lerp(float3(0, 0, 0), vertex.xyz, mixInfo.isObjectOn);
+	#endif
+
 	#ifdef VAT_USE_NORMAL
 		normal += mixInfo.normalDiff;
 	#endif
@@ -99,8 +108,16 @@ inline VatDiffInfo _GetFrameAttribute(float vertRate, float frameRate)
 	const float dy = 0.33333333333;
 
 	//位置
-	o.posDiff = tex2Dlod(_VatTex, uv);
 	
+	//Object ON/OFFアニメーション有効
+	#if !VAT_OBJECT_ON_OFF_ENABLE
+		o.posDiff = tex2Dlod(_VatTex, uv);
+	#else
+		float4 pos = tex2Dlod(_VatTex, uv);
+		o.posDiff = pos.xyz;
+		o.isObjectOn = pos.w;
+	#endif
+
 	//Normal
 	uv.y += dy;
 	#ifdef VAT_USE_NORMAL
@@ -128,6 +145,11 @@ inline VatDiffInfo _MixVatAttribute(VatDiffInfo before, VatDiffInfo after, float
 
 	#ifdef VAT_USE_TANGENT
 		o.tangentDiff = lerp(before.tangentDiff, after.tangentDiff, mixRate);
+	#endif
+
+	//Object ON/OFFアニメーション有効
+	#if VAT_OBJECT_ON_OFF_ENABLE
+		o.isObjectOn = before.isObjectOn;
 	#endif
 
 	return o;

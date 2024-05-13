@@ -5,10 +5,7 @@
 #pragma shader_feature _ VAT_ROTATION_INTERPOLATION
 #pragma shader_feature _ VAT_CTRL_WITH_RATE VAT_LOOP
 #pragma shader_feature _ VAT_LOOP
-
-#if !PANDA_VAT
-
-#endif
+#pragma shader_feature _ VAT_OBJECT_ON_OFF_ENABLE
 
 /******************************** property ***************************/
 uniform sampler2D _VatTex;	//頂点アニメーションテクスチャ
@@ -33,6 +30,7 @@ UNITY_INSTANCING_BUFFER_END(VatProps)
 
 //ほとんど同じ
 #define ALMOST_EQUAL(a, b) (length(a - b) < 1e-4)
+#define IS_SIZE_ZERO(val) ALMOST_EQUAL(val, float3(0, 0, 0))
 
 /******************************** static variable ***************************/
 static float _TexelWidth = _VatTex_TexelSize.z; //テクスチャが持つ情報：頂点数

@@ -13,6 +13,7 @@ Shader "PandaShad/Vat/VatSample"
 		[HideInInspector]_VatSpeed ("VatSpeed", float) = 1
 		[HideInInspector]_VatStartTimeOffset ("VatStartOffset", Float) = 0.0
 		[HideInInspector]_VatEndTimeOffset ("VatEndOffset", Float) = 0.0
+		[HideInInspector]_VatEnableObjectOnOff ("Is Vat enable object on/off anim", Int) = 0
 		//[  ここまでコピーしてね <]
 
 		//色にNormal表示するかTangent表示するか

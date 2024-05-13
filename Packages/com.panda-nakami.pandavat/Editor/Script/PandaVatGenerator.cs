@@ -640,7 +640,10 @@ namespace PandaScript.PandaVat
 			//既にアニメーションモード中の場合解除する
 			AnimationMode.StopAnimationMode();
 			AnimationMode.StartAnimationMode();
+
+			AnimationMode.BeginSampling();
 			AnimationMode.SampleAnimationClip(_rootObj, _animClip, 0);
+			AnimationMode.EndSampling();
 			AnimationMode.StopAnimationMode();
 
 			CreateTmpTransform();
@@ -740,11 +743,12 @@ namespace PandaScript.PandaVat
 
 			// エディタモードでのアニメーション制御を有効にする
 			AnimationMode.StartAnimationMode();
+			AnimationMode.BeginSampling();
 
 			//テクスチャに格納
 			Mesh tmpMesh = new Mesh();
 			for (int frameIndex = 0; frameIndex < frameCount; frameIndex++) {
-
+	
 				AnimationMode.SampleAnimationClip(_rootObj, _animClip, ((float)frameIndex / (frameCount - 1)) * duration);
 
 				if (isSkinedMeshRenderer) {
@@ -753,6 +757,8 @@ namespace PandaScript.PandaVat
 				else {
 					tmpMesh = baseMesh;
 				}
+
+				var isEnabled = render.enabled && IsActiveNest(renderT) ? 1 : 0;
 
 				Vector3[] vertices = tmpMesh.vertices;
 				Vector3[] normals = tmpMesh.normals;
@@ -763,12 +769,15 @@ namespace PandaScript.PandaVat
 				for (int vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
 					
 					Vector3 positionDiff = customRendererT.TransformPoint(vertices[vertIndex]) - defaultVertices[vertIndex];
+					Vector4 positionDiff_ = positionDiff;
+					positionDiff_.w = isEnabled;//rgbが色, aが有効/無効
+
 					Vector3 normalDiff = customRendererT.TransformDirection(normals[vertIndex]) - defaultNormals[vertIndex];
 					var tangent = customRendererT.TransformDirection(tangents[vertIndex]);
 					var tangentDiff = new Vector4(tangent.x, tangent.y, tangent.z, tangents[vertIndex].w) - defaultTangents[vertIndex];
 
 					var wIndex = texWidthOffset + vertIndex;
-					texture.SetPixel(wIndex , frameIndex, GetColor(positionDiff));
+					texture.SetPixel(wIndex , frameIndex, GetColor(positionDiff_));
 					texture.SetPixel(wIndex , frameIndex + frameCount, GetColor(normalDiff));
 					texture.SetPixel(wIndex, frameIndex + frameCount * 2, GetColor(tangentDiff));
 				}
@@ -776,6 +785,7 @@ namespace PandaScript.PandaVat
 				DestroyImmediate(customRendererT.gameObject);
 			}
 
+			AnimationMode.EndSampling();
 			AnimationMode.StopAnimationMode();
 		}
 
@@ -879,7 +889,7 @@ namespace PandaScript.PandaVat
 
 			// エディタモードでのアニメーション制御を有効にする
 			AnimationMode.StartAnimationMode();
-
+			AnimationMode.BeginSampling();
 			//各フレームで
 			//各頂点に対して
 			//属するボーンのスケール・回転・平行移動を取得
@@ -920,6 +930,7 @@ namespace PandaScript.PandaVat
 				DestroyImmediate(customBones[i].gameObject);
 			}
 
+			AnimationMode.EndSampling();
 			AnimationMode.StopAnimationMode();
 		}
 
@@ -1042,6 +1053,7 @@ namespace PandaScript.PandaVat
 				newMat.shader = _targetShader;
 
 				if (isCreate) {
+					newMat.DisableKeyword("VAT_OBJECT_ON_OFF_ENABLE");
 					AssetDatabase.CreateAsset(newMat, matPath);
 				}
 
@@ -1290,7 +1302,27 @@ namespace PandaScript.PandaVat
 			}
 		}
 		
+		/// <summary>
+		/// gameObjectが階層的にActiveか調べる
+		/// </summary>
+		/// <param name="t"></param>
+		/// <returns></returns>
+		private bool IsActiveNest(Transform t)
+		{
+			if (!t.gameObject.activeSelf) {
+				return false;
+			}
+
+			if(t.parent == null || t.parent == _rootObj.transform) {
+				return true;
+			}
+			else {
+				return IsActiveNest(t.parent);
+			}
+		}
+
 		#endregion
+
 
 		#region UITL
 		/****************** UTIL *********************/

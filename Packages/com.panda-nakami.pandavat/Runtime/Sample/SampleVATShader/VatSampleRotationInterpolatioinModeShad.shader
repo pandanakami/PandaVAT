@@ -13,6 +13,7 @@ Shader "PandaShad/Vat/VatRotationInterpolationModeSample"
 		[HideInInspector]_VatSpeed ("VatSpeed", float) = 1
 		[HideInInspector]_VatStartTimeOffset ("VatStartOffset", Float) = 0.0
 		[HideInInspector]_VatEndTimeOffset ("VatEndOffset", Float) = 0.0
+		[HideInInspector]_VatEnableObjectOnOff ("Is Vat enable object on/off anim", Int) = 0
 		//回転補間用設定
 		[HideInInspector]_RotationInterpolationMode ("RotationInterpolationMode", Int) = 1
 		//[  ここまでコピーしてね <]

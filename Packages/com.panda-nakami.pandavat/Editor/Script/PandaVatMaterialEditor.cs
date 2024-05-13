@@ -19,6 +19,7 @@ namespace PandaScript.PandaVat
 		int VAT_END_TIME_OFFSET_ID = -1;
 		int VAT_CTRL_WITH_RATE_ID = -1;
 		int VAT_RATE_ID = -1;
+		int VAT_OBJECT_ON_OFF_ENABLE = -1;
 
 		Dictionary<int, string> TAG_DIC = new Dictionary<int, string>();
 
@@ -57,6 +58,9 @@ namespace PandaScript.PandaVat
 
 			VAT_RATE_ID = Shader.PropertyToID("_VatRate");
 			TAG_DIC.Add(VAT_RATE_ID, "VAT割合");
+
+			VAT_OBJECT_ON_OFF_ENABLE = Shader.PropertyToID("_VatEnableObjectOnOff");
+			TAG_DIC.Add(VAT_OBJECT_ON_OFF_ENABLE, "ON/OFFアニメーション有効");
 		}
 
 		public override void OnInspectorGUI()
@@ -166,6 +170,10 @@ namespace PandaScript.PandaVat
 
 						
 					}
+
+					//オブジェクトのON/OFFアニメーション有効
+					bool isEnableObjectOnOffChange;
+					_DispToggleProp(material, VAT_OBJECT_ON_OFF_ENABLE, "VAT_OBJECT_ON_OFF_ENABLE", out isEnableObjectOnOffChange);
 				}
 				_DrawSeparator();
 			}

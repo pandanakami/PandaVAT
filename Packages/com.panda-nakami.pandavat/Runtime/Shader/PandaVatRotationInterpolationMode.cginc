@@ -126,6 +126,16 @@ inline VatBoneInfo _MixVatAttribute(VatBoneInfo before, VatBoneInfo after, float
 	o.pos = lerp(before.pos, after.pos, mixRate);
 	o.rotation = slerp(before.rotation, after.rotation, mixRate);
 	o.scale = lerp(before.scale, after.scale, mixRate);
+
+	//Object ON/OFFアニメーション有効
+	#if VAT_OBJECT_ON_OFF_ENABLE
+		//次フレームがOFFであれば、前フレームのサイズを採用
+		o.scale = IS_SIZE_ZERO(after.scale) ? before.scale : o.scale;
+		//前フレームがOFFであれば、サイズ0
+		o.scale = IS_SIZE_ZERO(before.scale) ? float3(0, 0, 0) : o.scale;
+
+	#endif
+
 	return o;
 }
 
