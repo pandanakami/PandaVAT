@@ -261,7 +261,7 @@ namespace PandaScript.PandaVat
 				conf._isOverwriteGameobject = _isOverwriteGameobject;
 				conf._animFps = _animFps;
 				conf._animClip = _animClip;
-				conf._targetRenderers = new List<Renderer>(_targetRenderers);
+				conf._targetRenderers = new List<Renderer>(_targetRenderers.Where(o=>o != null));
 				conf._targetShader = _targetShader;
 
 			}
@@ -400,7 +400,7 @@ namespace PandaScript.PandaVat
 						_isOverwriteGameobject = conf._isOverwriteGameobject;
 						_animFps = conf._animFps;
 						_animClip = conf._animClip;
-						_targetRenderers = conf._targetRenderers;
+						_targetRenderers = conf._targetRenderers.Where(o=>o!=null).ToList();
 						_targetShader = conf._targetShader;
 
 						_CheckRendererEnable();
@@ -501,15 +501,18 @@ namespace PandaScript.PandaVat
 				_hasRendererError = true;
 				return;
 			}
-
-			foreach(var r in _targetRenderers) {
-				if(!(r is SkinnedMeshRenderer || r is MeshRenderer)) {
-					_ErrorCheckResult = "[非対応のRenderer]";
-					_hasRendererError = true;
-					return;
-				}
+			if (_targetRenderers.Any(r => r == null)) {
+				_ErrorCheckResult = "[削除されたRenderer]";
+				_hasRendererError = true;
+				return;
 			}
-			
+
+			if (_targetRenderers.Any(r=> r is not SkinnedMeshRenderer && r is not MeshRenderer)) {
+				_ErrorCheckResult = "[非対応のRenderer]";
+				_hasRendererError = true;
+				return;
+			}
+
 			//エラーなし
 			_ErrorCheckResult = null;
 			_hasRendererError = false;
