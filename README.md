@@ -48,6 +48,7 @@ Rendererは複数選ぶとメッシュ結合しますが、制約で`マテリ�
 以下設定項目<br>
 ・`VATテクスチャ`：VATのテクスチャ。生成されたのを使う。触らない<br>
 ・`VAT FPS`：テクスチャのFPS設定。触らない。<br>
+・`ON/OFFアニメーション有効`：表示/非表示のアニメーションをVATで有効にする設定。`通常モード`であればRendererのenable/disable、GameObjectのActive/非Activeを加味。`回転補間モード`であればボーンのScaleが0の場合にフレーム間の線形補間を無視してScale0にして非表示を実現。<br>
 ・`VAT制御方法[時間/割合]`：VATを時間で制御するか割合で制御するか<br>
 ### ■時間の場合<br>
 ・`VATをループするか否か`：時間経過でループするか否か<br>
@@ -116,5 +117,9 @@ transform.localToWorldMatrix !=  Matrix4x4.TRS(transform.position, transform.rot
 ```
 
 ターゲットのボーン自体がScale(2,1,1)、Rotation(0,45,0)みたいになっているのは大丈夫。正直あまりよくわかっていない。
+
+# トラブルシューティング
+## ・生成結果がおかしい場合
+Unity再起動して再生成すると直るかもしれません。<br>
 
 [^1]: UNITY_DEFINE_INSTANCED_PROPの対象<br>

@@ -945,6 +945,7 @@ namespace PandaScript.PandaVat
 		private void _SaveAsset(Texture2D texture, string rendererName, 
 			Vector3[] vertices, Vector3[] normals, Vector4[] tangents, int[] triangles, List<List<Vector2>> uvs, BoneWeight[] boneWeights)
 		{
+			var texSize = Mathf.Max(texture.width, texture.height);
 
 			string dirName = _savePos;
 
@@ -970,6 +971,8 @@ namespace PandaScript.PandaVat
 				textureImporter.filterMode = FilterMode.Point;
 				textureImporter.wrapMode = TextureWrapMode.Repeat;
 				textureImporter.mipmapEnabled = false;
+				textureImporter.maxTextureSize = NextPowerOfTwo(texSize);
+				
 				AssetDatabase.ImportAsset(texPath, ImportAssetOptions.ForceUpdate);
 			}
 
@@ -1473,6 +1476,31 @@ namespace PandaScript.PandaVat
 			
 			return newName;
 		}
+
+		/// <summary>
+		/// 指定数値以上の2の累乗を見つける。
+		/// </summary>
+		/// <param name="n"></param>
+		/// <returns></returns>
+		int NextPowerOfTwo(int n)
+		{
+			if (n <= 0) {
+				return 1;
+			}
+
+			// nが既に2の累乗の場合はそのまま返す
+			if ((n & (n - 1)) == 0) {
+				return n;
+			}
+
+			// nより大きい最初の2の累乗を見つける
+			int power = 1;
+			while (power < n) {
+				power <<= 1;
+			}
+			return power;
+		}
+
 		#endregion
 	}
 }
