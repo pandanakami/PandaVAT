@@ -118,7 +118,13 @@ inline VatBoneInfo _GetFrameAttribute(float vertRate, float frameRate)
 
 	return o;
 }
-
+#if VAT_OBJECT_ON_OFF_ENABLE
+	static const VatBoneInfo ZERO_INFO = {
+		float3(0, 0, 0),
+		float4(1, 0, 0, 0),
+		float3(0, 0, 0)
+	};
+#endif
 //VATの前後フレームを線形補間する
 inline VatBoneInfo _MixVatAttribute(VatBoneInfo before, VatBoneInfo after, float mixRate)
 {
@@ -129,10 +135,17 @@ inline VatBoneInfo _MixVatAttribute(VatBoneInfo before, VatBoneInfo after, float
 
 	//Object ON/OFFアニメーション有効
 	#if VAT_OBJECT_ON_OFF_ENABLE
-		//次フレームがOFFであれば、前フレームのサイズを採用
-		o.scale = IS_SIZE_ZERO(after.scale) ? before.scale : o.scale;
-		//前フレームがOFFであれば、サイズ0
-		o.scale = IS_SIZE_ZERO(before.scale) ? float3(0, 0, 0) : o.scale;
+		//次フレームがOFFであれば、前フレームの情報を採用
+		float isAfterZero = IS_SIZE_ZERO(after.scale) ? 1 : 0;
+		o.pos = lerp(o.pos, before.pos, isAfterZero);
+		o.rotation = lerp(o.rotation, before.rotation, isAfterZero);
+		o.scale = lerp(o.scale, before.scale, isAfterZero);
+
+		//前フレームがOFFであれば、サイズ0(位置0)
+		float isBeforeZero = IS_SIZE_ZERO(before.scale) ? 1 : 0;
+		o.pos = lerp(o.pos, ZERO_INFO.pos, isBeforeZero);
+		o.rotation = lerp(o.rotation, ZERO_INFO.rotation, isBeforeZero);
+		o.scale = lerp(o.scale, ZERO_INFO.scale, isBeforeZero);
 
 	#endif
 
