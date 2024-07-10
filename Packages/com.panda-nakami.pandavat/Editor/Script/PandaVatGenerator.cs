@@ -122,9 +122,19 @@ namespace PandaScript.PandaVat
 		/// </summary>
 		private bool _hasModeError = false;
 		/// <summary>
+		/// エラー情報：Scale0がある
+		/// </summary>
+		private bool _hasScaleError = false;
+		/// <summary>
 		/// エラー情報：エラーメッセージ
 		/// </summary>
 		private string _ErrorCheckResult = null;
+
+		/// <summary>
+		/// Anim配下のレンダラーリフレッシュするためのフラグ
+		/// </summary>
+		private bool _refreshRenerers = false;
+
 		#endregion
 
 		/******************* method ********************/
@@ -343,7 +353,8 @@ namespace PandaScript.PandaVat
 			_CheckRendererEnable();
 			_CheckAnimClipEnable();
 			_CheckMode();
-			if (_hasRendererError || _hasAnimationError || _hasModeError) {
+			_CheckScale();
+			if (_hasRendererError || _hasAnimationError || _hasModeError || _hasScaleError) {
 				throw new Exception(_ErrorCheckResult);
 			}
 
@@ -360,12 +371,12 @@ namespace PandaScript.PandaVat
 		{
 			EditorGUI.BeginChangeCheck();
 			_rootAnim = (Animator)EditorGUILayout.ObjectField("対象のAnimator", _rootAnim, typeof(Animator), true);
-			if (EditorGUI.EndChangeCheck() || isManual) {
+			if (EditorGUI.EndChangeCheck() || isManual || _refreshRenerers) {
 				_targetRenderers.Clear();
 				_renderers = null;
 				_animationClips = null;
 				_animClip = null;
-
+				_refreshRenerers = false;
 				if (_rootAnim) {
 
 					_renderers = _rootAnim.GetComponentsInChildren<Renderer>().Where(r=>r is MeshRenderer || r is SkinnedMeshRenderer).ToArray();
@@ -408,6 +419,11 @@ namespace PandaScript.PandaVat
 						_CheckMode();
 					}
 
+				}
+			}
+			if (_rootAnim) {
+				if (GUILayout.Button("RefreshRenderer")) {
+					_refreshRenerers = true;
 				}
 			}
 
@@ -579,6 +595,29 @@ namespace PandaScript.PandaVat
 			_ErrorCheckResult = null;
 
 		}
+
+		private void _CheckScale()
+		{
+			if (_hasRendererError || _hasAnimationError || _hasModeError) {
+				return;
+			}
+
+			_hasScaleError = false;
+			List<Transform> list = new List<Transform>();
+			GetAllTransform(_rootAnim.transform, list);
+			
+			foreach (var t in list) {
+				if (t.localScale == Vector3.zero) {
+					_hasScaleError = true;
+					Debug.Log($"{GetFullPath(t)}: scale zero");
+				}
+			}
+
+			if (_hasScaleError) {
+				_ErrorCheckResult = "[アニメーション内にScale0のオブジェクトがあります。]";
+			}
+		}
+
 		#endregion
 
 		/// <summary>
@@ -649,8 +688,8 @@ namespace PandaScript.PandaVat
 			CreateTmpTransform();
 
 
-			//デフォルト情報保持
-			List<Vector3> defaultVertices = new List<Vector3>();
+				//デフォルト情報保持
+				List<Vector3> defaultVertices = new List<Vector3>();
 			List<Vector3> defaultNormals = new List<Vector3>();
 			List<Vector4> defaultTangents = new List<Vector4>();
 			List<int> triangles = new List<int>();
@@ -1001,7 +1040,7 @@ namespace PandaScript.PandaVat
 					meshPath = AssetDatabase.GenerateUniqueAssetPath(meshPath);
 					isCreate = true;
 				}
-				
+
 				newMesh.vertices = vertices;
 				newMesh.normals = normals;
 				newMesh.tangents = tangents;
@@ -1422,6 +1461,9 @@ namespace PandaScript.PandaVat
 			if (!retT) {
 				retT = new GameObject(src.name).transform;
 			}
+			else {
+				retT.name = reuseTransform.name;
+			}
 
 			//入力Transform(コピー)をparentの子にすることで、コピーのローカル座標はparentと入力の差になる
 			CopyTransform(src, _tmpT);
@@ -1499,6 +1541,23 @@ namespace PandaScript.PandaVat
 				power <<= 1;
 			}
 			return power;
+		}
+
+		private string GetFullPath(Transform t)
+		{
+			string ret = t.name;
+			if (t.parent != null) {
+				ret = GetFullPath(t.parent) + "/" + ret;
+			}
+			return ret;
+		}
+
+		void GetAllTransform(Transform t, List<Transform> list)
+		{
+			list.Add(t);
+			for (int i = 0; i < t.childCount; i++) {
+				GetAllTransform(t.GetChild(i), list);
+			}
 		}
 
 		#endregion
