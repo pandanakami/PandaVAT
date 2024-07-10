@@ -1484,8 +1484,8 @@ namespace PandaScript.PandaVat
 		/// <returns></returns>
 		int NextPowerOfTwo(int n)
 		{
-			if (n <= 0) {
-				return 1;
+			if (n <= 32) {
+				return 32;
 			}
 
 			// nが既に2の累乗の場合はそのまま返す
