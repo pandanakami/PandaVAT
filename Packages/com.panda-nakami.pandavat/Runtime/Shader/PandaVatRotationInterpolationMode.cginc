@@ -8,6 +8,9 @@ struct VatBoneInfo
 	float3 pos;
 	float4 rotation;
 	float3 scale;
+	#if VAT_OBJECT_ON_OFF_ENABLE
+		float isObjectOn;
+	#endif
 };
 
 /******************************** macro define ***************************/
@@ -87,6 +90,11 @@ inout float4 vertex
 	#ifdef VAT_USE_TANGENT
 		tangent = float4(mul((float3x3)mat, tangent.xyz), baseTangent.w);
 	#endif
+
+	//Object ON/OFFアニメーション有効
+	#if VAT_OBJECT_ON_OFF_ENABLE
+		vertex.xyz = lerp(float3(0, 0, 0), vertex.xyz, mixInfo.isObjectOn);
+	#endif
 }
 
 /******************************** private function ***************************/
@@ -106,7 +114,11 @@ inline VatBoneInfo _GetFrameAttribute(float vertRate, float frameRate)
 	const float dy = 0.33333333333;
 
 	//位置
-	o.pos = tex2Dlod(_VatTex, uv).xyz;
+	float4 p = tex2Dlod(_VatTex, uv);
+	o.pos = p.xyz;
+	#if VAT_OBJECT_ON_OFF_ENABLE
+		o.isObjectOn = p.w;
+	#endif
 	
 	//回転
 	uv.y += dy;
@@ -118,13 +130,7 @@ inline VatBoneInfo _GetFrameAttribute(float vertRate, float frameRate)
 
 	return o;
 }
-#if VAT_OBJECT_ON_OFF_ENABLE
-	static const VatBoneInfo ZERO_INFO = {
-		float3(0, 0, 0),
-		float4(1, 0, 0, 0),
-		float3(0, 0, 0)
-	};
-#endif
+
 //VATの前後フレームを線形補間する
 inline VatBoneInfo _MixVatAttribute(VatBoneInfo before, VatBoneInfo after, float mixRate)
 {
@@ -134,21 +140,10 @@ inline VatBoneInfo _MixVatAttribute(VatBoneInfo before, VatBoneInfo after, float
 	o.scale = lerp(before.scale, after.scale, mixRate);
 
 	//Object ON/OFFアニメーション有効
+	//memo:1つのボーンに複数Rendererが紐づいてON/OFF組み合わせる場合、意図しない表示になる。(全表示or全非表示)
 	#if VAT_OBJECT_ON_OFF_ENABLE
-		//次フレームがOFFであれば、前フレームの情報を採用
-		float isAfterZero = IS_SIZE_ZERO(after.scale) ? 1 : 0;
-		o.pos = lerp(o.pos, before.pos, isAfterZero);
-		o.rotation = lerp(o.rotation, before.rotation, isAfterZero);
-		o.scale = lerp(o.scale, before.scale, isAfterZero);
-
-		//前フレームがOFFであれば、サイズ0(位置0)
-		float isBeforeZero = IS_SIZE_ZERO(before.scale) ? 1 : 0;
-		o.pos = lerp(o.pos, ZERO_INFO.pos, isBeforeZero);
-		o.rotation = lerp(o.rotation, ZERO_INFO.rotation, isBeforeZero);
-		o.scale = lerp(o.scale, ZERO_INFO.scale, isBeforeZero);
-
+		o.isObjectOn = before.isObjectOn;
 	#endif
-
 	return o;
 }
 

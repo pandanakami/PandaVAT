@@ -48,7 +48,7 @@ Rendererは複数選ぶとメッシュ結合しますが、制約で`マテリ�
 以下設定項目<br>
 ・`VATテクスチャ`：VATのテクスチャ。生成されたのを使う。触らない<br>
 ・`VAT FPS`：テクスチャのFPS設定。触らない。<br>
-・`ON/OFFアニメーション有効`：表示/非表示のアニメーションをVATで有効にする設定。`通常モード`であればRendererのenable/disable、GameObjectのActive/非Activeを加味。`回転補間モード`であればボーンのScaleが0の場合にフレーム間の線形補間を無視してScale0にして非表示を実現。<br>
+・`ON/OFFアニメーション有効`：表示/非表示のアニメーションをVATで有効にする設定。Rendererのenable/disable、GameObjectのActive/非Activeを加味。`回転補間モード`だと、複数SkinnedMeshRendererが同じArmatureを共有する場合、個別のON/OFFは正常に機能しません。<br>
 ・`VAT制御方法[時間/割合]`：VATを時間で制御するか割合で制御するか<br>
 ### ■時間の場合<br>
 ・`VATをループするか否か`：時間経過でループするか否か<br>

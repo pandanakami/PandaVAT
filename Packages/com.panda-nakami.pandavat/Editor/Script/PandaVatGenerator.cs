@@ -929,6 +929,7 @@ namespace PandaScript.PandaVat
 			// エディタモードでのアニメーション制御を有効にする
 			AnimationMode.StartAnimationMode();
 			AnimationMode.BeginSampling();
+			Vector4 position = new Vector4();
 			//各フレームで
 			//各頂点に対して
 			//属するボーンのスケール・回転・平行移動を取得
@@ -944,15 +945,24 @@ namespace PandaScript.PandaVat
 
 				Transform customBone = customBones[0];
 
+
+				//memo:回転補間モードはRenderer:ボーンが多:多。
+				//     複数Rendererで共通のArmatureを持つ場合は、上手く動かない
+				//     全部OFFになるか全部ON
+				//     ON/OFF機能使いたいならそんなRenderer構成にしないこと
+				var isEnabled = render.enabled && IsActiveNest(renderT) ? 1 : 0;
+
 				//現フレームのボーンをカスタム座標系にする
 				for (var i = 0; i < boneCount; i++) {
 
 					var bone = bones[i];
+					//memo:別Rendererとボーンを共有している場合は複数回同じ処理が走る。
 					var combineBoneIndex = _BoneIndexDic[bone];
 
 					customBone = CreateCustomTransform(bones[i], rootT.parent, customBone);
 
-					var position = customBone.localPosition;
+					var p = customBone.localPosition;
+					position.Set(p.x, p.y, p.z, isEnabled);
 					var scale = customBone.localScale;
 					var rotation = customBone.localRotation;
 
