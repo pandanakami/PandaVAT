@@ -24,11 +24,12 @@ PandaVATはアニメーションをVAT(VertexAnimationTexture)化するための
 使用中のシェーダーを以下のサンプルを見ていい感じにVAT化してください。<br>
 `Packages/com.panda-nakami.pandavat/Runtime/Sample/SampleVATShader/VatSampleShad.shader`<br>
 <br>
-基本、Vertexシェーダーの最初にVAT座標取得処理を呼ぶだけです。<br>
+基本、`PandaVatXXXMode.cginc`をインクルードしてVertexシェーダーの最初にVAT座標取得処理を呼ぶだけです。<br>
 サーフェスシェーダーは非対応です。<br>
+ShaderGraphも同じく。<br>
 <br>
 ## 2. アニメーションのVAT化(設定)<br>
-`[ぱんだスクリプト]-[PandaVAT]`を選択してダイアログ開いてください。<br>
+`[Window]-[ぱんだスクリプト]-[PandaVAT]`を選択してダイアログ開いてください。<br>
 ダイアログに対象のアニメーションがある`Animator`と`1で作ったシェーダー`を指定してください。<br>
 Animatorが持つ`AnimationClip一覧`と`Renderer一覧`が表示されるのでVAT対象にしたいやつを選んでください。<br>
 Rendererは`MeshRendere`と`SkinnedMeshRenderer`が対象です。<br>
@@ -48,15 +49,15 @@ Rendererは複数選ぶとメッシュ結合しますが、制約で`マテリ�
 以下設定項目<br>
 ・`VATテクスチャ`：VATのテクスチャ。生成されたのを使う。触らない<br>
 ・`VAT FPS`：テクスチャのFPS設定。触らない。<br>
-・`ON/OFFアニメーション有効`：表示/非表示のアニメーションをVATで有効にする設定。Rendererのenable/disable、GameObjectのActive/非Activeを加味。`回転補間モード`だと、複数SkinnedMeshRendererが同じArmatureを共有する場合、個別のON/OFFは正常に機能しません。<br>
+・`ON/OFFアニメーション有効`：表示/非表示のアニメーションをVATで有効にする設定。Rendererのenable/disable、GameObjectのActive/非Activeを加味。<br>(`回転補間モード`だと、複数SkinnedMeshRendererが同じArmatureを共有する場合、個別のON/OFFは正常に機能しません。)<br>
 ・`VAT制御方法[時間/割合]`：VATを時間で制御するか割合で制御するか<br>
-### ■時間の場合<br>
+### ■VAT制御方法が[時間]の場合<br>
 ・`VATをループするか否か`：時間経過でループするか否か<br>
 ・`VAT開始時間[秒]`：アニメーションを開始する時間。ループ設定しててもこの時間までは開始しない[^1]<br>
 ・`VATスピード`：アニメーションのスピード[^1]<br>
 ・`開始前時間[秒]`：アニメーション開始前に動かない時間を設定できる[^1]<br>
 ・`開始後時間[秒]`：アニメーション終了後に動かない時間を設定できる[^1]<br>
-### ■割合の場合<br>
+### ■VAT制御方法が[割合]の場合<br>
 ・`VAT割合`：0から1の間でアニメーションの位置を設定できる[^1]<br>
 <br>
 ## 5. 実行時のアニメーション制御<br>
@@ -75,7 +76,7 @@ meshRenderer.SetPropertyBlock(materialPropertyBlock);
 <br>
 # 回転補間モードについて<br>
 通常のVATはテクスチャに頂点位置を書き込んでいる仕組み上、急速な回転に弱いです。<br>
-例えば30FPSで1フレームで90°回転するような立方体で、描画するタイミングが1.5/30秒の場合、1フレーム目と2フレーム目のちょうど中間になり、線形補間のせいで立方体がとても小さくなってしまいます。<br>
+例えば30FPSで1フレームで90°回転するような立方体で、描画するタイミングが1.5/30秒の場合、1フレーム目と2フレーム目のちょうど中間になり、線形補間のせいで立方体がとても小さくなってしまいます。(補間しなければそれはそれで表示が汚い。)<br>
 ![image](https://raw.githubusercontent.com/pandanakami/PandaVAT/images/images/rotation_interporation.png)
 <br>
 回転補間モードは、これを防ぐために、テクスチャに各頂点が影響するボーンのPosition/Rotation/Scaleを持たせ、シェーダー内でRotationの補間にslerpを使用するようにしたモードです。<br>
@@ -84,7 +85,7 @@ meshRenderer.SetPropertyBlock(materialPropertyBlock);
 シェーダーを回転補間モードにするには以下サンプルを参考にしてください<br>
 `Packages/com.panda-nakami.pandavat/Runtime/Sample/SampleVATShader/VatSampleRotationInterpolatioinModeShad.shader`<br>
 
-シェーダー変更した後、再生成してください。<br>
+シェーダー変更した後、テクスチャの再生成必要です。<br>
 <br>
 以下、回転補間モードのメリット・デメリット・制約です。<br>
 <br>
@@ -92,7 +93,7 @@ meshRenderer.SetPropertyBlock(materialPropertyBlock);
 ### (1)テクスチャサイズはほとんどの場合で圧倒的に小さくなる
 テクスチャの幅が頂点数でなくボーン数になるため。
 
-### (2)回転アニメーションの場合テクスチャのFPS数を減らしても通常モードに比べてそれなりに元アニメーションに近い動きをしそう(願望)<br>
+### (2)回転アニメーションは元のアニメーションに近い動きをする<br>
 <br>
 
 ## ・デメリット<br>
@@ -116,7 +117,7 @@ Quaternionのslerpしたり、変換行列作ったりしてるので。<br>
 transform.localToWorldMatrix !=  Matrix4x4.TRS(transform.position, transform.rotation, transform.lossyScale)
 ```
 
-ターゲットのボーン自体がScale(2,1,1)、Rotation(0,45,0)みたいになっているのは大丈夫。正直あまりよくわかっていない。
+ターゲットのボーン自体がScale(2,1,1)、Rotation(0,45,0)みたいになっているのは大丈夫です。
 
 # トラブルシューティング
 ## ・生成結果がおかしい場合

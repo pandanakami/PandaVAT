@@ -140,7 +140,7 @@ namespace PandaScript.PandaVat
 		/******************* method ********************/
 
 		#region GUI
-		[MenuItem("ぱんだスクリプト/VatGenerator")]
+		[MenuItem("Window/ぱんだスクリプト/VatGenerator")]
 		static void ShowWindow()
 		{
 			var window = GetWindow<PandaVatGenerator>("PandaVatGenerator");
@@ -677,13 +677,17 @@ namespace PandaScript.PandaVat
 			var rootT = _rootObj.transform;
 
 			//既にアニメーションモード中の場合解除する
+			var w = GetWindow<AnimationWindow>();
+			if (w) {
+				w.previewing = false;
+			}
+
 			AnimationMode.StopAnimationMode();
 			AnimationMode.StartAnimationMode();
 
 			AnimationMode.BeginSampling();
 			AnimationMode.SampleAnimationClip(_rootObj, _animClip, 0);
-			AnimationMode.EndSampling();
-			AnimationMode.StopAnimationMode();
+
 
 			CreateTmpTransform();
 
@@ -757,6 +761,9 @@ namespace PandaScript.PandaVat
 
 
 			DestroyTmpTransform();
+
+			AnimationMode.EndSampling();
+			AnimationMode.StopAnimationMode();
 		}
 
 		/// <summary>
@@ -779,10 +786,6 @@ namespace PandaScript.PandaVat
 			var renderT = render.transform;
 			var targetSkinnedMeshRenderer = render as SkinnedMeshRenderer;
 			var isSkinedMeshRenderer = targetSkinnedMeshRenderer != null;
-
-			// エディタモードでのアニメーション制御を有効にする
-			AnimationMode.StartAnimationMode();
-			AnimationMode.BeginSampling();
 
 			//テクスチャに格納
 			Mesh tmpMesh = new Mesh();
@@ -823,9 +826,6 @@ namespace PandaScript.PandaVat
 
 				DestroyImmediate(customRendererT.gameObject);
 			}
-
-			AnimationMode.EndSampling();
-			AnimationMode.StopAnimationMode();
 		}
 
 		/// <summary>
@@ -926,9 +926,6 @@ namespace PandaScript.PandaVat
 				outBoneWeights.AddRange(boneWeights);
 			}
 
-			// エディタモードでのアニメーション制御を有効にする
-			AnimationMode.StartAnimationMode();
-			AnimationMode.BeginSampling();
 			Vector4 position = new Vector4();
 			//各フレームで
 			//各頂点に対して
@@ -979,8 +976,6 @@ namespace PandaScript.PandaVat
 				DestroyImmediate(customBones[i].gameObject);
 			}
 
-			AnimationMode.EndSampling();
-			AnimationMode.StopAnimationMode();
 		}
 
 		/// <summary>
