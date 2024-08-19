@@ -32,6 +32,8 @@ namespace PandaScript.PandaVat
 		/****************** GUI input *********************/
 
 		#region field
+		private PandaVatConfig _conf;
+		
 		private string _savePos;
 		private string _rootFullPath => Directory.GetParent(Application.dataPath).FullName.Replace("\\", "/") + "/";
 
@@ -54,7 +56,7 @@ namespace PandaScript.PandaVat
 		/// <summary>
 		/// 出力FPS
 		/// </summary>
-		private int _animFps = 30;
+		private int _animFps = 60;
 
 		/// <summary>
 		/// GameObject出力先
@@ -157,6 +159,14 @@ namespace PandaScript.PandaVat
 
 			DrawSeparator();
 
+			//プリセット
+			EditorGUI.BeginChangeCheck();
+			_conf = EditorGUILayout.ObjectField("プリセット", _conf, typeof(PandaVatConfig), true) as PandaVatConfig;
+			var updateConf = EditorGUI.EndChangeCheck();
+
+			//保存場所
+			DrawSeparator();
+
 			if (_savePos == null) {
 				_savePos = DEFAULT_SAVE_POS;
 			}
@@ -191,9 +201,21 @@ namespace PandaScript.PandaVat
 			if (EditorGUI.EndChangeCheck()) {
 				_CheckAnimClipEnable();
 			}
+
 			DrawSeparator();
 			//RendererとAnimationClip
-			_DispAnimatorAndRendererSelector();
+			var forceUpdateAnim = false;
+			if (updateConf) {
+				if (_conf) {
+					_rootAnim = _conf.GetComponent<Animator>();
+				}
+				else {
+					_rootAnim = null;
+				}
+				forceUpdateAnim = true;
+			}
+
+			_DispAnimatorAndRendererSelector(forceUpdateAnim);
 			DrawSeparator();
 
 			//Shader
@@ -273,6 +295,8 @@ namespace PandaScript.PandaVat
 				conf._animClip = _animClip;
 				conf._targetRenderers = new List<Renderer>(_targetRenderers.Where(o=>o != null));
 				conf._targetShader = _targetShader;
+
+				_conf = conf;
 
 			}
 
@@ -372,6 +396,13 @@ namespace PandaScript.PandaVat
 			EditorGUI.BeginChangeCheck();
 			_rootAnim = (Animator)EditorGUILayout.ObjectField("対象のAnimator", _rootAnim, typeof(Animator), true);
 			if (EditorGUI.EndChangeCheck() || isManual || _refreshRenerers) {
+				
+				//既にアニメーションモード中の場合解除する
+				var w = GetWindow<AnimationWindow>();
+				if (w) {
+					w.previewing = false;
+				}
+
 				_targetRenderers.Clear();
 				_renderers = null;
 				_animationClips = null;
@@ -418,6 +449,8 @@ namespace PandaScript.PandaVat
 						_CheckAnimClipEnable();
 						_CheckMode();
 					}
+
+					_conf = conf;
 
 				}
 			}
@@ -602,6 +635,12 @@ namespace PandaScript.PandaVat
 				return;
 			}
 
+			//既にアニメーションモード中の場合解除する
+			var w = GetWindow<AnimationWindow>();
+			if (w) {
+				w.previewing = false;
+			}
+
 			_hasScaleError = false;
 			List<Transform> list = new List<Transform>();
 			GetAllTransform(_rootAnim.transform, list);
@@ -676,28 +715,15 @@ namespace PandaScript.PandaVat
 
 			var rootT = _rootObj.transform;
 
-			//既にアニメーションモード中の場合解除する
-			var w = GetWindow<AnimationWindow>();
-			if (w) {
-				w.previewing = false;
-			}
-
-			AnimationMode.StopAnimationMode();
-			AnimationMode.StartAnimationMode();
-
-			AnimationMode.BeginSampling();
-			AnimationMode.SampleAnimationClip(_rootObj, _animClip, 0);
-
-
 			CreateTmpTransform();
 
 
-				//デフォルト情報保持
-				List<Vector3> defaultVertices = new List<Vector3>();
+			//デフォルト情報保持
+			List<Vector3> defaultVertices = new List<Vector3>();
 			List<Vector3> defaultNormals = new List<Vector3>();
 			List<Vector4> defaultTangents = new List<Vector4>();
 			List<int> triangles = new List<int>();
-			List<List<Vector2>> uvs = new List<List<Vector2>>(Enumerable.Repeat(0,8).Select(_=> new List<Vector2>()));
+			List<List<Vector2>> uvs = Enumerable.Repeat(0, 8).Select(_ => new List<Vector2>()).ToList();
 			List< BoneWeight>boneWeights = new List<BoneWeight>();
 
 			//回転補正モード
@@ -762,7 +788,6 @@ namespace PandaScript.PandaVat
 
 			DestroyTmpTransform();
 
-			AnimationMode.EndSampling();
 			AnimationMode.StopAnimationMode();
 		}
 
@@ -787,6 +812,11 @@ namespace PandaScript.PandaVat
 			var targetSkinnedMeshRenderer = render as SkinnedMeshRenderer;
 			var isSkinedMeshRenderer = targetSkinnedMeshRenderer != null;
 
+
+			AnimationMode.StartAnimationMode();
+
+			var customRendererT = CreateCustomTransform(renderT, rootT.parent);
+
 			//テクスチャに格納
 			Mesh tmpMesh = new Mesh();
 			for (int frameIndex = 0; frameIndex < frameCount; frameIndex++) {
@@ -806,7 +836,7 @@ namespace PandaScript.PandaVat
 				Vector3[] normals = tmpMesh.normals;
 				Vector4[] tangents = tmpMesh.tangents;
 
-				var customRendererT = CreateCustomTransform(renderT, rootT.parent);
+				customRendererT = CreateCustomTransform(renderT, rootT.parent, customRendererT);
 				
 				for (int vertIndex = 0; vertIndex < vertexCount; vertIndex++) {
 					
@@ -823,9 +853,12 @@ namespace PandaScript.PandaVat
 					texture.SetPixel(wIndex , frameIndex + frameCount, GetColor(normalDiff));
 					texture.SetPixel(wIndex, frameIndex + frameCount * 2, GetColor(tangentDiff));
 				}
-
-				DestroyImmediate(customRendererT.gameObject);
 			}
+
+			DestroyImmediate(customRendererT.gameObject);
+
+			AnimationMode.StopAnimationMode();
+
 		}
 
 		/// <summary>
@@ -864,8 +897,8 @@ namespace PandaScript.PandaVat
 				customBones = new Transform[bones.Length];
 
 				//デフォルトボーンをカスタム座標系にする
-				for(var i = 0; i < bones.Length; i++) {
-					customBones[i] = CreateCustomTransform(bones[i], rootT.parent);					
+				for (var i = 0; i < bones.Length; i++) {
+					customBones[i] = CreateCustomTransform(bones[i], rootT.parent);
 				}
 
 				//レンダラーをカスタム座標系にする
@@ -926,6 +959,8 @@ namespace PandaScript.PandaVat
 				outBoneWeights.AddRange(boneWeights);
 			}
 
+			AnimationMode.StartAnimationMode();
+
 			Vector4 position = new Vector4();
 			//各フレームで
 			//各頂点に対して
@@ -970,6 +1005,8 @@ namespace PandaScript.PandaVat
 
 				}
 			}
+
+			AnimationMode.StopAnimationMode();
 
 			//テンポラリオブジェクト破棄
 			for (var i = 0; i < customBones.Length; i++) {
